@@ -298,3 +298,16 @@ Cuando se confirma una coincidencia real (Bloom positivo + búsqueda binaria pos
 - **Validación de búsqueda**: `searchInBin` incluye guardas contra underflow de `size_t`, offsets negativos, y accesos que excedan `binSize`.
 
 - **Cierre limpio**: `cleanupResources` verifica `MAP_FAILED` antes de `munmap` y nulifica cada puntero tras liberarlo.
+
+
+☕ Support the Project / Donations
+
+If you find this tool useful and want to support its development, you can donate to the following address:
+
+./USDT/BSC : 0x755d370be94a8b904d66539886f8a933067adf22
+
+ . /ETH: 0x755d370be94a8b904d66539886f8a933067adf22
+
+   . /BTC : 16E9B3mNrRWXvN63ZVFgPLtHB4e13JUSZE
+      
+     ./SOL : 8U9jrjdHQdXscVvkPeLfmCoa7yEoox3Le8a15Bai2jwM

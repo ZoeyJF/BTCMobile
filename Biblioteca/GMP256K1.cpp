@@ -41,7 +41,7 @@ Point Secp256K1::Negation(Point &p) {
 	Q.x.Set(&p.x);
 	Q.y.Set(&this->P);
 	Q.y.Sub(&p.y);
-	Q.z.SetInt32(1);
+	Q.z.Set(&p.z);
 	return Q;
 }
 Point Secp256K1::DoubleDirect(Point &p) {
@@ -243,6 +243,9 @@ uint8_t Secp256K1::GetByte(char *str, int idx) {
   return (uint8_t)val;
 }
 Point Secp256K1::AddDirect(Point &p1,Point &p2) {
+  if (p1.x.IsEqual(&p2.x) && p1.y.IsEqual(&p2.y)) {
+    return Double(p1);
+  }
   Int _s;
   Int _p;
   Int dy;

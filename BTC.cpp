@@ -162,8 +162,12 @@ static void draw_backward_bar(double pct, int width) {
     char bar[128];
     memset(bar, '-', (size_t)(width - 2));
     bar[width - 2] = 0;
-    for (int i = 0; i < filled; i++) bar[(width - 3) - i] = '=';
-    if (filled < width - 2) bar[(width - 3) - filled] = '<';
+    for (int i = 0; i < filled; i++) {
+        int idx = (width - 3) - i;
+        if (idx >= 0 && idx < width - 2) bar[idx] = '=';
+    }
+    int arrow_idx = (width - 3) - filled;
+    if (arrow_idx >= 0 && arrow_idx < width - 2) bar[arrow_idx] = '<';
     cprintf("[%-*s] %6.2f%%", width - 2, bar, pct * 100.0);
 }
 static void draw_random_dots(void) {

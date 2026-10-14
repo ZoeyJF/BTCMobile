@@ -2,7 +2,7 @@
 CXX = g++
 CC  = gcc
 INC  = -IBiblioteca
-OPT  = -O3
+OPT  = -O3 -DNDEBUG
 STD  = -std=c++17
 PTH  = -pthread
 WARN = -Wall

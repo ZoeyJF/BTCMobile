@@ -3,16 +3,11 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <string>
-
 #include "sha256.h"
-
 #define BSWAP
-
 namespace _sha256
 {
-
   static const unsigned char pad[64] = { 0x80 };
-
 #ifndef WIN64
 #define _byteswap_ulong __builtin_bswap32
 #define _byteswap_uint64 __builtin_bswap64
@@ -21,22 +16,18 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
   return x;
 }
 #endif
-
 #define ROR(x,n) _rotr(x, n)
 #define S0(x) (ROR(x,2) ^ ROR(x,13) ^ ROR(x,22))
 #define S1(x) (ROR(x,6) ^ ROR(x,11) ^ ROR(x,25))
 #define s0(x) (ROR(x,7) ^ ROR(x,18) ^ (x >> 3))
 #define s1(x) (ROR(x,17) ^ ROR(x,19) ^ (x >> 10))
-
 #define Maj(x,y,z) ((x&y)^(x&z)^(y&z))
 #define Ch(x,y,z) (z ^ (x & (y ^ z)))
-
 #define Round(a, b, c, d, e, f, g, h, k, w) \
     t1 = h + S1(e) + Ch(e,f,g) + k + (w); \
     t2 = S0(a) + Maj(a,b,c); \
     d += t1; \
     h = t1 + t2;
-
 #ifdef BSWAP
 #define WRITEBE32(ptr,x) *((uint32_t *)(ptr)) = _byteswap_ulong(x)
 #define WRITEBE64(ptr,x) *((uint64_t *)(ptr)) = _byteswap_uint64(x)
@@ -46,9 +37,7 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
 #define WRITEBE64(ptr,x) *(ptr) = x
 #define READBE32(ptr) *(uint32_t *)(ptr)
 #endif
-
   void Initialize(uint32_t *s) {
-
     s[0] = 0x6a09e667ul;
     s[1] = 0xbb67ae85ul;
     s[2] = 0x3c6ef372ul;
@@ -57,16 +46,13 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     s[5] = 0x9b05688cul;
     s[6] = 0x1f83d9abul;
     s[7] = 0x5be0cd19ul;
-
   }
-
   void Transform(uint32_t* s, const unsigned char* chunk)
   {
     uint32_t t1;
     uint32_t t2;
     uint32_t a = s[0], b = s[1], c = s[2], d = s[3], e = s[4], f = s[5], g = s[6], h = s[7];
     uint32_t w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
-
     Round(a, b, c, d, e, f, g, h, 0x428a2f98, w0 = READBE32(chunk + 0));
     Round(h, a, b, c, d, e, f, g, 0x71374491, w1 = READBE32(chunk + 4));
     Round(g, h, a, b, c, d, e, f, 0xb5c0fbcf, w2 = READBE32(chunk + 8));
@@ -83,7 +69,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0x80deb1fe, w13 = READBE32(chunk + 52));
     Round(c, d, e, f, g, h, a, b, 0x9bdc06a7, w14 = READBE32(chunk + 56));
     Round(b, c, d, e, f, g, h, a, 0xc19bf174, w15 = READBE32(chunk + 60));
-
     Round(a, b, c, d, e, f, g, h, 0xe49b69c1, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0xefbe4786, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x0fc19dc6, w2 += s1(w0) + w11 + s0(w3));
@@ -100,7 +85,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd5a79147, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0x06ca6351, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x14292967, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x27b70a85, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x2e1b2138, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x4d2c6dfc, w2 += s1(w0) + w11 + s0(w3));
@@ -117,7 +101,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd6990624, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xf40e3585, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x106aa070, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x19a4c116, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x1e376c08, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x2748774c, w2 += s1(w0) + w11 + s0(w3));
@@ -134,7 +117,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xa4506ceb, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xbef9a3f7, w14 + s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0xc67178f2, w15 + s1(w13) + w8 + s0(w0));
-
     s[0] += a;
     s[1] += b;
     s[2] += c;
@@ -143,15 +125,11 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     s[5] += f;
     s[6] += g;
     s[7] += h;
-
   }
-
   void Transform2(uint32_t* s, const unsigned char* chunk) {
-
     uint32_t t1;
     uint32_t t2;
     uint32_t w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10, w11, w12, w13, w14, w15;
-
     uint32_t a = 0x6a09e667ul;
     uint32_t b = 0xbb67ae85ul;
     uint32_t c = 0x3c6ef372ul;
@@ -160,7 +138,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     uint32_t f = 0x9b05688cul;
     uint32_t g = 0x1f83d9abul;
     uint32_t h = 0x5be0cd19ul;
-
     Round(a, b, c, d, e, f, g, h, 0x428a2f98, w0 = READBE32(chunk + 0));
     Round(h, a, b, c, d, e, f, g, 0x71374491, w1 = READBE32(chunk + 4));
     Round(g, h, a, b, c, d, e, f, 0xb5c0fbcf, w2 = READBE32(chunk + 8));
@@ -177,7 +154,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0x80deb1fe, w13 = READBE32(chunk + 52));
     Round(c, d, e, f, g, h, a, b, 0x9bdc06a7, w14 = READBE32(chunk + 56));
     Round(b, c, d, e, f, g, h, a, 0xc19bf174, w15 = READBE32(chunk + 60));
-
     Round(a, b, c, d, e, f, g, h, 0xe49b69c1, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0xefbe4786, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x0fc19dc6, w2 += s1(w0) + w11 + s0(w3));
@@ -194,7 +170,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd5a79147, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0x06ca6351, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x14292967, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x27b70a85, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x2e1b2138, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x4d2c6dfc, w2 += s1(w0) + w11 + s0(w3));
@@ -211,7 +186,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd6990624, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xf40e3585, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x106aa070, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x19a4c116, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x1e376c08, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x2748774c, w2 += s1(w0) + w11 + s0(w3));
@@ -228,7 +202,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xa4506ceb, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xbef9a3f7, w14 + s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0xc67178f2, w15 + s1(w13) + w8 + s0(w0));
-
     w0 = 0x6a09e667ul + a;
     w1 = 0xbb67ae85ul + b;
     w2 = 0x3c6ef372ul + c;
@@ -245,7 +218,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     w13 = 0;
     w14 = 0;
     w15 = 0x100;
-
     a = 0x6a09e667ul;
     b = 0xbb67ae85ul;
     c = 0x3c6ef372ul;
@@ -254,7 +226,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     f = 0x9b05688cul;
     g = 0x1f83d9abul;
     h = 0x5be0cd19ul;
-
     Round(a, b, c, d, e, f, g, h, 0x428a2f98, w0);
     Round(h, a, b, c, d, e, f, g, 0x71374491, w1);
     Round(g, h, a, b, c, d, e, f, 0xb5c0fbcf, w2);
@@ -271,7 +242,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0x80deb1fe, w13);
     Round(c, d, e, f, g, h, a, b, 0x9bdc06a7, w14);
     Round(b, c, d, e, f, g, h, a, 0xc19bf174, w15);
-
     Round(a, b, c, d, e, f, g, h, 0xe49b69c1, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0xefbe4786, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x0fc19dc6, w2 += s1(w0) + w11 + s0(w3));
@@ -288,7 +258,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd5a79147, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0x06ca6351, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x14292967, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x27b70a85, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x2e1b2138, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x4d2c6dfc, w2 += s1(w0) + w11 + s0(w3));
@@ -305,7 +274,6 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xd6990624, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xf40e3585, w14 += s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0x106aa070, w15 += s1(w13) + w8 + s0(w0));
-
     Round(a, b, c, d, e, f, g, h, 0x19a4c116, w0 += s1(w14) + w9 + s0(w1));
     Round(h, a, b, c, d, e, f, g, 0x1e376c08, w1 += s1(w15) + w10 + s0(w2));
     Round(g, h, a, b, c, d, e, f, 0x2748774c, w2 += s1(w0) + w11 + s0(w3));
@@ -322,29 +290,21 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
     Round(d, e, f, g, h, a, b, c, 0xa4506ceb, w13 += s1(w11) + w6 + s0(w14));
     Round(c, d, e, f, g, h, a, b, 0xbef9a3f7, w14 + s1(w12) + w7 + s0(w15));
     Round(b, c, d, e, f, g, h, a, 0xc67178f2, w15 + s1(w13) + w8 + s0(w0));
-
     s[0] = 0x6a09e667ul + a;
-
   }
-
 }
-
 class CSHA256
 {
 private:
     uint32_t s[8];
     unsigned char buf[64];
     uint64_t bytes;
-
 public:
     static const size_t OUTPUT_SIZE = 32;
-
     CSHA256();
     void Write(const unsigned char* data, size_t len);
     void Finalize(unsigned char hash[OUTPUT_SIZE]);
-
 };
-
 CSHA256::CSHA256() {
     bytes = 0;
     s[0] = 0x6a09e667ul;
@@ -356,7 +316,6 @@ CSHA256::CSHA256() {
     s[6] = 0x1f83d9abul;
     s[7] = 0x5be0cd19ul;
 }
-
 void CSHA256::Write(const unsigned char* data, size_t len)
 {
   const unsigned char* end = data + len;
@@ -378,7 +337,6 @@ void CSHA256::Write(const unsigned char* data, size_t len)
     bytes += end - data;
   }
 }
-
 void CSHA256::Finalize(unsigned char hash[OUTPUT_SIZE])
 {
     unsigned char sizedesc[8];
@@ -394,28 +352,20 @@ void CSHA256::Finalize(unsigned char hash[OUTPUT_SIZE])
     WRITEBE32(hash + 24, s[6]);
     WRITEBE32(hash + 28, s[7]);
 }
-
 void sha256(unsigned char *input, size_t length, unsigned char *digest) {
-
 	CSHA256 sha;
 	sha.Write(input, length);
 	sha.Finalize(digest);
-
 }
-
 const uint8_t sizedesc_32[8] = { 0,0,0,0,0,0,1,0 };
 const uint8_t sizedesc_33[8] = { 0,0,0,0,0,0,1,8 };
 const uint8_t sizedesc_65[8] = { 0,0,0,0,0,0,2,8 };
-
 void sha256_33(unsigned char *input, unsigned char *digest) {
-
   uint32_t s[8];
-
   _sha256::Initialize(s);
   memcpy(input + 33, _sha256::pad, 23);
   memcpy(input + 56, sizedesc_33, 8);
   _sha256::Transform(s, input);
-
   WRITEBE32(digest, s[0]);
   WRITEBE32(digest + 4, s[1]);
   WRITEBE32(digest + 8, s[2]);
@@ -424,20 +374,14 @@ void sha256_33(unsigned char *input, unsigned char *digest) {
   WRITEBE32(digest + 20, s[5]);
   WRITEBE32(digest + 24, s[6]);
   WRITEBE32(digest + 28, s[7]);
-
 }
-
 void sha256_65(unsigned char *input, unsigned char *digest) {
-
   uint32_t s[8];
-
   memcpy(input + 65, _sha256::pad, 55);
   memcpy(input + 120, sizedesc_65, 8);
-
   _sha256::Initialize(s);
   _sha256::Transform(s, input);
   _sha256::Transform(s, input+64);
-
   WRITEBE32(digest, s[0]);
   WRITEBE32(digest + 4, s[1]);
   WRITEBE32(digest + 8, s[2]);
@@ -446,11 +390,8 @@ void sha256_65(unsigned char *input, unsigned char *digest) {
   WRITEBE32(digest + 20, s[5]);
   WRITEBE32(digest + 24, s[6]);
   WRITEBE32(digest + 28, s[7]);
-
 }
-
 void sha256_checksum(uint8_t *input, int length, uint8_t *checksum) {
-
   uint32_t s[8];
   uint8_t b[64];
   memcpy(b,input,length);
@@ -458,19 +399,14 @@ void sha256_checksum(uint8_t *input, int length, uint8_t *checksum) {
   WRITEBE64(b + 56, length << 3);
   _sha256::Transform2(s, b);
   WRITEBE32(checksum,s[0]);
-
 }
-
 std::string sha256_hex(unsigned char *digest) {
-
     char buf[2*32+1];
     buf[2*32] = 0;
     for (int i = 0; i < 32; i++)
         sprintf(buf+i*2,"%02x",digest[i]);
     return std::string(buf);
-
 }
-
 bool sha256_file(const char* file_name, uint8_t* checksum) {
     FILE* file = fopen(file_name, "rb");
     if (file == NULL) {
@@ -480,11 +416,9 @@ bool sha256_file(const char* file_name, uint8_t* checksum) {
     CSHA256 sha;
     uint8_t buffer[8192];
     size_t bytes_read;
-
 	while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
 		sha.Write( buffer, bytes_read);
 	}
-
 	sha.Finalize(checksum);
 	fclose(file);
 	return true;

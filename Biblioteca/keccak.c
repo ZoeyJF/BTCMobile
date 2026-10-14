@@ -1,11 +1,7 @@
 #define	_POSIX_C_SOURCE	200809L
-
 #include <stdint.h>
-
 #include "keccak.h"
-
 #define	secret
-
 #define	FOR5(X, STMT) do						      \
 {									      \
 	(X) = 0; (STMT);						      \
@@ -14,20 +10,16 @@
 	(X) = 3; (STMT);						      \
 	(X) = 4; (STMT);						      \
 } while (0)
-
 static inline secret uint64_t
 rol64(secret uint64_t v, unsigned c)
 {
-
 	return ((v << c) | (v >> (64 - c)));
 }
-
 static inline void
 keccakf1600_theta(secret uint64_t A[25])
 {
 	secret uint64_t C0, C1, C2, C3, C4;
 	unsigned y;
-
 	C0 = C1 = C2 = C3 = C4 = 0;
 #pragma GCC diagnostic ignored "-Wpedantic"
 	FOR5(y, {
@@ -46,12 +38,10 @@ keccakf1600_theta(secret uint64_t A[25])
 	});
 #pragma GCC diagnostic pop
 }
-
 static inline void
 keccakf1600_rho_pi(secret uint64_t A[25])
 {
 	secret uint64_t T, U;
-
 	U = A[ 1];                       T = U;
 	U = A[10]; A[10] = rol64(T,  1); T = U;
 	U = A[ 7]; A[ 7] = rol64(T,  3); T = U;
@@ -78,13 +68,11 @@ keccakf1600_rho_pi(secret uint64_t A[25])
 	U = A[ 6]; A[ 6] = rol64(T, 20); T = U;
 	           A[ 1] = rol64(T, 44);
 }
-
 static inline void
 keccakf1600_chi(secret uint64_t A[25])
 {
 	secret uint64_t B0, B1, B2, B3, B4;
 	unsigned y;
-
 #pragma GCC diagnostic ignored "-Wpedantic"
 	FOR5(y, {
 		B0 = A[0 + 5*y];
@@ -100,16 +88,13 @@ keccakf1600_chi(secret uint64_t A[25])
 	});
 #pragma GCC diagnostic pop
 }
-
 static void
 keccakf1600_round(secret uint64_t A[25])
 {
-
 	keccakf1600_theta(A);
 	keccakf1600_rho_pi(A);
 	keccakf1600_chi(A);
 }
-
 void
 keccakf1600(secret uint64_t A[25])
 {
@@ -140,7 +125,6 @@ keccakf1600(secret uint64_t A[25])
 		0x8000000080008008ULL,
 	};
 	unsigned i;
-
 	for (i = 0; i < 24; i++) {
 		keccakf1600_round(A);
 		A[0] ^= RC[i];

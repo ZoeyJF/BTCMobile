@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -O3 -std=c++17 -I. -ISecp256k1Tool -pthread -mssse3
+CXXFLAGS = -O3 -std=c++17 -I. -ISecp256k1Tool -pthread
 CFLAGS = -O3 -I. -ISecp256k1Tool
 
 SECP_SRCS = Secp256k1Tool/Int.cpp \

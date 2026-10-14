@@ -319,9 +319,13 @@ static void ui_draw(void) {
         }
         double pct = 0.0;
         if (!span.IsZero()) {
-            double d_completed = (double)completed_keys.GetInt64();
-            double d_span = (double)span.GetInt64();
-            if (d_span > 0.0) pct = d_completed / d_span;
+            int span_b = span.GetBitLength();
+            int comp_b = completed_keys.GetBitLength();
+            if (span_b - comp_b < 53) {
+                double d_completed = (double)completed_keys.GetInt64();
+                double d_span = (double)span.GetInt64();
+                if (d_span > 0.0) pct = d_completed / d_span;
+            }
         }
         if (pct > 1.0) pct = 1.0;
         draw_progress_bar(pct, 60); row++;
@@ -400,10 +404,14 @@ static void ui_draw(void) {
                 span.Sub(&g_global_end, &g_global_start);
                 span.Add((uint32_t)1);
                 if (!span.IsZero()) {
-                    double d_ck = (double)ck;
-                    double d_span = (double)span.GetInt64();
-                    if (d_span > 0.0) pct = d_ck / d_span;
-                    if (pct > 1.0) pct = 1.0;
+                    int span_b = span.GetBitLength();
+                    int ck_b = 64;
+                    if (span_b - ck_b < 53) {
+                        double d_ck = (double)ck;
+                        double d_span = (double)span.GetInt64();
+                        if (d_span > 0.0) pct = d_ck / d_span;
+                        if (pct > 1.0) pct = 1.0;
+                    }
                 }
             }
             draw_progress_bar(pct, 60); row++;
@@ -978,8 +986,7 @@ static void run_seq_fwd(thread_arg_t *a) {
             g_checked.fetch_add((uint64_t)batch_count * 3);
             g_fwd_checked.fetch_add((uint64_t)batch_count * 3);
             batch_count = 0;
-            cur.Set(&a->start);
-            derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
+            break;
         } else {
             if (batch_count >= 32) {
                 apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
@@ -1019,10 +1026,6 @@ static void run_bidir_quad(thread_arg_t *a) {
     Point negG = g_secp->Negation(g_secp->G);
     curve_constants_t c;
     init_curve_constants(&c);
-    Int center;
-    center.Add(&a->start, &a->end);
-    Int two((uint32_t)2);
-    center.Div(&two);
     int num_hilos = g_threads;
     if (num_hilos < 1) num_hilos = 1;
     Int span_bidir;
@@ -1254,6 +1257,7 @@ static void run_pure(thread_arg_t *a) {
     Point p1_dn_batch[32], p2_dn_batch[32], p3_dn_batch[32];
     Int priv1_dn_batch[32], priv2_dn_batch[32], priv3_dn_batch[32];
     while (!g_stop.load()) {
+        time_t pure_slot_start = time(nullptr);
         Int s, e;
         Int rand_bits;
         Int min_b((uint32_t)1), max_b((uint32_t)256);
@@ -1272,9 +1276,9 @@ static void run_pure(thread_arg_t *a) {
         a->range_bits = rbits;
         a->subrange_id = sid;
         g_range_bits.store(rbits);
-        int cycle_count = 0;
         int batch_count = 0;
-        while (!g_stop.load() && cycle_count < 24) {
+        while (!g_stop.load()) {
+            if ((int)(time(nullptr) - pure_slot_start) >= 25) break;
             Int center;
             center.Rand(&s, &e);
             Int up; up.Set(&center);
@@ -1315,7 +1319,6 @@ static void run_pure(thread_arg_t *a) {
                 g_checked.fetch_add((uint64_t)batch_count * 6);
                 batch_count = 0;
             }
-            cycle_count++;
         }
         if (batch_count > 0) {
             apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, batch_count);
@@ -1339,7 +1342,7 @@ static void run_subrango_random(thread_arg_t *a) {
     run_randoms(a);
 }
 static void pin_to_big_cores(void) {
-#if defined(__linux__)
+#if defined(__linux__) && !defined(__ANDROID__)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
@@ -1354,8 +1357,6 @@ static void pin_to_big_cores(void) {
                 if (freq > 1500000) CPU_SET(i, &cpuset);
             }
             fclose(f);
-        } else {
-            if (i >= num_cpus / 2) CPU_SET(i, &cpuset);
         }
     }
     if (CPU_COUNT(&cpuset) > 0) {
@@ -1581,13 +1582,21 @@ int main(int argc, char **argv) {
         }
     }
     g_start = time(nullptr);
+    g_checked.store(0);
+    g_found.store(0);
+    g_derive_count.store(0);
+    g_xor_queries.store(0);
+    g_xor_hits.store(0);
+    g_xor_fp.store(0);
+    g_pure_cycle.store(0);
+    g_fwd_checked.store(0);
+    g_bwd_checked.store(0);
+    g_current_subrange.store(0);
     for (int i = 0; i < THREAD_MAX; i++) {
         g_thread_active[i].store(0);
         g_thread_subrange[i].store(0);
         g_thread_keys[i].store(0);
     }
-    g_fwd_checked.store(0);
-    g_bwd_checked.store(0);
     if (g_mode == 4) {
         g_global_start.SetInt32(1);
         g_global_start.ShiftL(255);

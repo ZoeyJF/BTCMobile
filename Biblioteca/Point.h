@@ -4,19 +4,19 @@
 class Point {
 public:
 	Point();
-	Point(Int *cx, Int *cy,Int *cz);
-	Point& operator=(const Point& other);
+	Point(Int *x, Int *y, Int *z);
+	Point(Int *x, Int *y);
+	Point(Int x, Int y);
 	Point(const Point &p);
 	~Point();
-	bool isZero();
-	bool equals(Point &p);
+	void Set(Int *x, Int *y, Int *z);
+	void Set(Int *x, Int *y);
 	void Set(Point &p);
-	void Set(Int *cx, Int *cy,Int *cz);
 	void Clear();
 	void Reduce();
-	void print(const char *str);
 	Int x;
 	Int y;
 	Int z;
+	Point& operator=(const Point& other);
 };
 #endif

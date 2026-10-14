@@ -1,28 +1,4 @@
-/*-
- * Copyright (c) 2015 Taylor R. Campbell
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+
 
 #define	_POSIX_C_SOURCE	200809L
 
@@ -30,7 +6,7 @@
 
 #include "keccak.h"
 
-#define	secret	/* can't use in variable-time operations, should zero */
+#define	secret
 
 #define	FOR5(X, STMT) do						      \
 {									      \
@@ -78,10 +54,7 @@ keccakf1600_rho_pi(secret uint64_t A[25])
 {
 	secret uint64_t T, U;
 
-	/*
-	 * Permute by (x,y) |---> (y, 2x + 3y mod 5) starting at (1,0),
-	 * rotate the ith element by (i + 1)(i + 2)/2 mod 64.
-	 */
+
 	U = A[ 1];                       T = U;
 	U = A[10]; A[10] = rol64(T,  1); T = U;
 	U = A[ 7]; A[ 7] = rol64(T,  3); T = U;
@@ -143,10 +116,7 @@ keccakf1600_round(secret uint64_t A[25])
 void
 keccakf1600(secret uint64_t A[25])
 {
-	/*
-	 * RC[i] = \sum_{j = 0,...,6} rc(j + 7i) 2^(2^j - 1),
-	 * rc(t) = (x^t mod x^8 + x^6 + x^5 + x^4 + 1) mod x in GF(2)[x]
-	 */
+
 	static const uint64_t RC[24] = {
 		0x0000000000000001ULL,
 		0x0000000000008082ULL,

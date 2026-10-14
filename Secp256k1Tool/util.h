@@ -1,6 +1,10 @@
 #ifndef CUSTOMUTILH
 #define CUSTOMUTILH
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct str_list	{
 	int n;
 	char **data;
@@ -30,4 +34,8 @@ int isValidHex(char *data);
 void freetokenizer(Tokenizer *t);
 void stringtokenizer(char *data,Tokenizer *t);
 
-#endif // CUSTOMUTILH
+#ifdef __cplusplus
+}
+#endif
+
+#endif

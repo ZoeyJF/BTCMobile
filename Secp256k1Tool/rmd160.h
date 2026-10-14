@@ -1,5 +1,4 @@
-/* RMD160.H - header file for RMD160.C
- */
+
 #ifndef _RMD160_H_
 #define _RMD160_H_
 
@@ -12,14 +11,14 @@
 #define RMD160_HASHBYTES 20
 #define RMD160_HASHWORDS 5
 
-/* For compatibility */
+
 #define RIPEMD160_BLOCKBYTES 64
 #define RIPEMD160_BLOCKWORDS 16
 
 #define RIPEMD160_HASHBYTES 20
 #define RIPEMD160_HASHWORDS 5
 
-/* RIPEMD160 context. */
+
 typedef struct RMD160Context {
  uint32_t key[RIPEMD160_BLOCKWORDS];
  uint32_t iv[RIPEMD160_HASHWORDS];
@@ -47,4 +46,4 @@ __END_DECLS
 
 #endif
 
-#endif /* _RMD160_H_ */
+#endif

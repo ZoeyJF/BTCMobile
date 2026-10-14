@@ -1,19 +1,4 @@
-/*
- * This file is part of the BSGS distribution (https://github.com/JeanLucPons/BSGS).
- * Copyright (c) 2020 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include "Int.h"
 #include "IntGroup.h"
@@ -29,7 +14,7 @@
 Int _ONE((uint64_t)1);
 
 
-// ------------------------------------------------
+
 
 Int::Int() {
   CLEAR();
@@ -66,7 +51,7 @@ Int::Int(uint64_t u64) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::CLEAR() {
   memset(bits64,0, NB64BLOCK*8);
@@ -76,14 +61,14 @@ void Int::CLEARFF() {
   memset(bits64, 0xFF, NB64BLOCK * 8);
 }
 
-// ------------------------------------------------
+
 
 void Int::Set(Int *a) {
   for (int i = 0; i<NB64BLOCK; i++)
   	bits64[i] = a->bits64[i];
 }
 
-// ------------------------------------------------
+
 
 void Int::Add(Int *a) {
 
@@ -102,7 +87,7 @@ void Int::Add(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Add(uint64_t a) {
 
@@ -120,7 +105,7 @@ void Int::Add(uint64_t a) {
 #endif
 }
 
-// ------------------------------------------------
+
 void Int::AddOne() {
 
   unsigned char c = 0;
@@ -138,7 +123,7 @@ void Int::AddOne() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Add(Int *a,Int *b) {
 
@@ -157,7 +142,7 @@ void Int::Add(Int *a,Int *b) {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsGreater(Int *a) {
 
@@ -177,7 +162,7 @@ bool Int::IsGreater(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsLower(Int *a) {
 
@@ -197,7 +182,7 @@ bool Int::IsLower(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsGreaterOrEqual(Int *a) {
 
@@ -207,7 +192,7 @@ bool Int::IsGreaterOrEqual(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsLowerOrEqual(Int *a) {
 
@@ -258,21 +243,21 @@ bool Int::IsZero() {
 }
 
 
-// ------------------------------------------------
+
 
 void Int::SetInt64(uint64_t value) {
   CLEAR();
   bits64[0]=value;
 }
 
-// ------------------------------------------------
+
 
 void Int::SetInt32(uint32_t value) {
   CLEAR();
   bits[0]=value;
 }
 
-// ------------------------------------------------
+
 
 uint32_t Int::GetInt32() {
   return bits[0];
@@ -283,7 +268,7 @@ uint64_t Int::GetInt64() {
 }
 
 
-// ------------------------------------------------
+
 
 unsigned char Int::GetByte(int n) {
 
@@ -313,7 +298,7 @@ void Int::Get32Bytes(unsigned char *buff) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::SetByte(int n,unsigned char byte) {
 
@@ -322,19 +307,19 @@ void Int::SetByte(int n,unsigned char byte) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::SetDWord(int n,uint32_t b) {
   bits[n] = b;
 }
 
-// ------------------------------------------------
+
 
 void Int::SetQWord(int n, uint64_t b) {
 	bits64[n] = b;
 }
 
-// ------------------------------------------------
+
 
 void Int::Sub(Int *a) {
 
@@ -353,7 +338,7 @@ void Int::Sub(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Sub(Int *a,Int *b) {
 
@@ -406,19 +391,19 @@ void Int::SubOne() {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsPositive() {
   return (int64_t)(bits64[NB64BLOCK - 1])>=0;
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsNegative() {
   return (int64_t)(bits64[NB64BLOCK - 1])<0;
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsStrictPositive() {
   if( IsPositive() )
@@ -427,19 +412,19 @@ bool Int::IsStrictPositive() {
 	  return false;
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsEven() {
   return (bits[0] & 0x1) == 0;
 }
 
-// ------------------------------------------------
+
 
 bool Int::IsOdd() {
   return (bits[0] & 0x1) == 1;
 }
 
-// ------------------------------------------------
+
 
 void Int::Neg() {
 
@@ -458,7 +443,7 @@ void Int::Neg() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftL32Bit() {
 
@@ -469,7 +454,7 @@ void Int::ShiftL32Bit() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftL64Bit() {
 
@@ -480,7 +465,7 @@ void Int::ShiftL64Bit() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftL32BitAndSub(Int *a,int n) {
 
@@ -497,7 +482,7 @@ void Int::ShiftL32BitAndSub(Int *a,int n) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftL(uint32_t n) {
 
@@ -512,7 +497,7 @@ void Int::ShiftL(uint32_t n) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftR32Bit() {
 
@@ -526,7 +511,7 @@ void Int::ShiftR32Bit() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ShiftR64Bit() {
 
@@ -540,7 +525,7 @@ void Int::ShiftR64Bit() {
 
 }
 
-// ---------------------------------D---------------
+
 
 void Int::ShiftR(uint32_t n) {
 
@@ -555,7 +540,7 @@ void Int::ShiftR(uint32_t n) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mult(Int *a) {
 
@@ -564,11 +549,11 @@ void Int::Mult(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::IMult(int64_t a) {
 
-	// Make a positive
+
 	if (a < 0LL) {
 		a = -a;
 		Neg();
@@ -578,20 +563,20 @@ void Int::IMult(int64_t a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mult(uint64_t a) {
 
 	imm_mul(bits64, a, bits64);
 
 }
-// ------------------------------------------------
+
 
 void Int::IMult(Int *a, int64_t b) {
 
   Set(a);
 
-  // Make b positive
+
   if (b < 0LL) {
 	Neg();
 	b = -b;
@@ -600,7 +585,7 @@ void Int::IMult(Int *a, int64_t b) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mult(Int *a, uint64_t b) {
 
@@ -608,7 +593,7 @@ void Int::Mult(Int *a, uint64_t b) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mult(Int *a,Int *b) {
 
@@ -634,13 +619,13 @@ void Int::Mult(Int *a,Int *b) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mult(Int *a,uint32_t b) {
   imm_mul(a->bits64, (uint64_t)b, bits64);
 }
 
-// ------------------------------------------------
+
 
 static uint32_t bitLength(uint32_t dw) {
 
@@ -654,7 +639,7 @@ static uint32_t bitLength(uint32_t dw) {
 
 }
 
-// ------------------------------------------------
+
 
 int Int::GetBitLength() {
 
@@ -669,7 +654,7 @@ int Int::GetBitLength() {
 
 }
 
-// ------------------------------------------------
+
 
 int Int::GetSize() {
 
@@ -679,7 +664,7 @@ int Int::GetSize() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::MultModN(Int *a,Int *b,Int *n) {
 
@@ -690,7 +675,7 @@ void Int::MultModN(Int *a,Int *b,Int *n) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Mod(Int *n) {
 
@@ -700,18 +685,18 @@ void Int::Mod(Int *n) {
 
 }
 
-// ------------------------------------------------
+
 
 int Int::GetLowestBit() {
 
-  // Assume this!=0
+
   int b=0;
   while(GetBit(b)==0) b++;
   return b;
 
 }
 
-// ------------------------------------------------
+
 
 void Int::MaskByte(int n) {
 
@@ -720,7 +705,7 @@ void Int::MaskByte(int n) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Abs() {
 
@@ -729,7 +714,7 @@ void Int::Abs() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::Rand(int nbit) {
 
@@ -760,7 +745,7 @@ void Int::Rand(Int *min,Int *max) {
   this->Add(min);
 }
 
-// ------------------------------------------------
+
 
 void Int::Div(Int *a,Int *mod) {
 
@@ -781,19 +766,19 @@ void Int::Div(Int *a,Int *mod) {
     return;
   }
 
-  //Division algorithm D (Knuth section 4.3.1)
+
 
   Int rem(this);
   Int d(a);
   Int dq;
   CLEAR();
 
-  // Size
+
   uint32_t dSize = d.GetSize();
   uint32_t tSize = rem.GetSize();
   uint32_t qSize = tSize - dSize + 1;
 
-  // D1 normalize the divisor
+
   uint32_t shift = bitLength(d.bits[dSize-1]);
   if (shift > 0) {
     d.ShiftL(shift);
@@ -805,10 +790,10 @@ void Int::Div(Int *a,Int *mod) {
   uint32_t  _dl    = (dSize>1)?d.bits[dSize-2]:0;
   int sb = tSize-1;
 
-  // D2 Initialize j
+
   for(int j=0; j<(int)qSize; j++) {
 
-    // D3 Estimate qhat
+
     uint32_t qhat = 0;
     uint32_t qrem = 0;
     int skipCorrection = false;
@@ -830,7 +815,7 @@ void Int::Div(Int *a,Int *mod) {
 
     if (!skipCorrection) {
 
-      // Correct qhat
+
       uint64_t nl = (uint64_t)rem.bits[sb-j-1];
       uint64_t rs = ((uint64_t)qrem << 32) | nl;
       uint64_t estProduct = (uint64_t)_dl * (uint64_t)(qhat);
@@ -848,11 +833,11 @@ void Int::Div(Int *a,Int *mod) {
 
     }
 
-    // D4 Multiply and subtract
+
     dq.Mult(&d,qhat);
     rem.ShiftL32BitAndSub(&dq,qSize-j-1);
     if( rem.IsNegative() ) {
-      // Overflow
+
       rem.Add(&d);
       qhat--;
     }
@@ -862,14 +847,14 @@ void Int::Div(Int *a,Int *mod) {
  }
 
  if( mod ) {
-   // Unnormalize remainder
+
    rem.ShiftR(shift);
    mod->Set(&rem);
  }
 
 }
 
-// ------------------------------------------------
+
 
 void Int::GCD(Int *a) {
     uint32_t k;
@@ -912,12 +897,12 @@ void Int::GCD(Int *a) {
       }
       T.Sub(&V);
     } while (!T.IsZero());
-    // Store gcd
+
     Set(&U);
     ShiftL(k);
 }
 
-// ------------------------------------------------
+
 
 void Int::SetBase10(const char *value) {
   CLEAR();
@@ -934,25 +919,25 @@ void Int::SetBase10(const char *value) {
 
 }
 
-// ------------------------------------------------
+
 
 void  Int::SetBase16(const char *value) {
   SetBaseN(16,"0123456789ABCDEF",value);
 }
 
-// ------------------------------------------------
+
 
 char* Int::GetBase10() {
   return GetBaseN(10,"0123456789");
 }
 
-// ------------------------------------------------
+
 
 char* Int::GetBase16() {
   return GetBaseN(16,"0123456789abcdef");
 }
 
-// ------------------------------------------------
+
 
 char* Int::GetBlockStr() {
   char *tmp =  (char*) calloc(1,256);
@@ -966,7 +951,7 @@ char* Int::GetBlockStr() {
 	return tmp;
 }
 
-// ------------------------------------------------
+
 
 char * Int::GetC64Str(int nbDigit) {
   char *tmp =  (char*) calloc(1,256);
@@ -990,7 +975,7 @@ char * Int::GetC64Str(int nbDigit) {
   return tmp;
 }
 
-// ------------------------------------------------
+
 
 void  Int::SetBaseN(int n,const char *charset,const char *value) {
   CLEAR();
@@ -1012,7 +997,7 @@ void  Int::SetBaseN(int n,const char *charset,const char *value) {
   }
 }
 
-// ------------------------------------------------
+
 
 char* Int::GetBaseN(int n,const char *charset) {
   char *ret = (char*) calloc(1,1024);
@@ -1022,7 +1007,7 @@ char* Int::GetBaseN(int n,const char *charset) {
   int isNegative = N.IsNegative();
   if (isNegative) N.Neg();
 
-  // TODO: compute max digit
+
   unsigned char digits[1024];
   memset(digits, 0, sizeof(digits));
 
@@ -1040,7 +1025,7 @@ char* Int::GetBaseN(int n,const char *charset) {
     }
   }
 
-  // reverse
+
   if (isNegative)
     ret[offset++] = '-';
 
@@ -1052,7 +1037,7 @@ char* Int::GetBaseN(int n,const char *charset) {
   return ret;
 }
 
-// ------------------------------------------------
+
 
 
 int Int::GetBit(uint32_t n) {
@@ -1062,7 +1047,7 @@ int Int::GetBit(uint32_t n) {
   return (bits[byte] & mask)!=0;
 }
 
-// ------------------------------------------------
+
 char* Int::GetBase2() {
   char *ret =  (char*) calloc(1,1024);
   int k=0;

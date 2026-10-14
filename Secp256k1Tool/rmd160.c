@@ -1,33 +1,23 @@
-/*
- * RIPEMD160.c - European RIPE Message Digest, 160 bit (RIPEMD-160)
- *
- * The algorithm is by Hans Dobbertin, Antoon Bosselaers, and Bart Preneel.
- *
- * The code below is based on the reference implementation by Bosselaers.
- * It is available at the time of writing from
- * http://www.esat.kuleuven.ac.be/~bosselae/ripemd160.html
- *
- * Hacked for use in libmd by Martin Hinner <mhi@penguin.cz>
- */
+
 
 #include <string.h>
 
 #include "rmd160.h"
 
-/* macro definitions */
 
-/* ROL(x, n) cyclically rotates x over n bits to the left */
-/* x must be of an unsigned 32 bits type and 0 <= n < 32. */
+
+
+
 #define ROL(x, n) (((x) << (n)) | ((x) >> (32-(n))))
 
-/* the three basic functions F(), G() and H() */
+
 #define F(x, y, z)	((x) ^ (y) ^ (z))
 #define G(x, y, z)	(((x) & (y)) | (~(x) & (z)))
 #define H(x, y, z)	(((x) | ~(y)) ^ (z))
 #define I(x, y, z)	(((x) & (z)) | ((y) & ~(z)))
 #define J(x, y, z)	((x) ^ ((y) | ~(z)))
 
-/* the eight basic operations FF() through III() */
+
 #define FF(a, b, c, d, e, x, s)	{\
 	(a) += F((b), (c), (d)) + (x);\
 	(a) = ROL((a), (s)) + (e);\
@@ -88,9 +78,7 @@
 	(c) = ROL((c), 10);\
 	}
 
-/*
-   initializes MDbuffer to "magic constants"
- */
+
 static void
 RMDinit (uint32_t * MDbuf)
 {
@@ -102,10 +90,7 @@ RMDinit (uint32_t * MDbuf)
 }
 
 
-/*
-   the compression function.
-   transforms MDbuf using message bytes X[0] through X[15]
- */
+
 static void
 RMDcompress (uint32_t * MDbuf, uint32_t * X)
 {
@@ -115,7 +100,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
             ddd = MDbuf[3], eee = MDbuf[4];
 
 
-/* round 1 */
+
   FF (aa, bb, cc, dd, ee, X[0], 11);
   FF (ee, aa, bb, cc, dd, X[1], 14);
   FF (dd, ee, aa, bb, cc, X[2], 15);
@@ -133,7 +118,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   FF (bb, cc, dd, ee, aa, X[14], 9);
   FF (aa, bb, cc, dd, ee, X[15], 8);
 
-/* round 2 */
+
   GG (ee, aa, bb, cc, dd, X[7], 7);
   GG (dd, ee, aa, bb, cc, X[4], 6);
   GG (cc, dd, ee, aa, bb, X[13], 8);
@@ -151,7 +136,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   GG (aa, bb, cc, dd, ee, X[11], 13);
   GG (ee, aa, bb, cc, dd, X[8], 12);
 
-/* round 3 */
+
   HH (dd, ee, aa, bb, cc, X[3], 11);
   HH (cc, dd, ee, aa, bb, X[10], 13);
   HH (bb, cc, dd, ee, aa, X[14], 6);
@@ -169,7 +154,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   HH (ee, aa, bb, cc, dd, X[5], 7);
   HH (dd, ee, aa, bb, cc, X[12], 5);
 
-/* round 4 */
+
   II (cc, dd, ee, aa, bb, X[1], 11);
   II (bb, cc, dd, ee, aa, X[9], 12);
   II (aa, bb, cc, dd, ee, X[11], 14);
@@ -187,7 +172,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   II (dd, ee, aa, bb, cc, X[6], 5);
   II (cc, dd, ee, aa, bb, X[2], 12);
 
-/* round 5 */
+
   JJ (bb, cc, dd, ee, aa, X[4], 9);
   JJ (aa, bb, cc, dd, ee, X[0], 15);
   JJ (ee, aa, bb, cc, dd, X[5], 5);
@@ -205,7 +190,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   JJ (cc, dd, ee, aa, bb, X[15], 5);
   JJ (bb, cc, dd, ee, aa, X[13], 6);
 
-/* parallel round 1 */
+
   JJJ (aaa, bbb, ccc, ddd, eee, X[5], 8);
   JJJ (eee, aaa, bbb, ccc, ddd, X[14], 9);
   JJJ (ddd, eee, aaa, bbb, ccc, X[7], 9);
@@ -223,7 +208,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   JJJ (bbb, ccc, ddd, eee, aaa, X[3], 12);
   JJJ (aaa, bbb, ccc, ddd, eee, X[12], 6);
 
-/* parallel round 2 */
+
   III (eee, aaa, bbb, ccc, ddd, X[6], 9);
   III (ddd, eee, aaa, bbb, ccc, X[11], 13);
   III (ccc, ddd, eee, aaa, bbb, X[3], 15);
@@ -241,7 +226,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   III (aaa, bbb, ccc, ddd, eee, X[1], 13);
   III (eee, aaa, bbb, ccc, ddd, X[2], 11);
 
-/* parallel round 3 */
+
   HHH (ddd, eee, aaa, bbb, ccc, X[15], 9);
   HHH (ccc, ddd, eee, aaa, bbb, X[5], 7);
   HHH (bbb, ccc, ddd, eee, aaa, X[1], 15);
@@ -259,7 +244,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   HHH (eee, aaa, bbb, ccc, ddd, X[4], 7);
   HHH (ddd, eee, aaa, bbb, ccc, X[13], 5);
 
-/* parallel round 4 */
+
   GGG (ccc, ddd, eee, aaa, bbb, X[8], 15);
   GGG (bbb, ccc, ddd, eee, aaa, X[6], 5);
   GGG (aaa, bbb, ccc, ddd, eee, X[4], 8);
@@ -277,7 +262,7 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   GGG (ddd, eee, aaa, bbb, ccc, X[10], 15);
   GGG (ccc, ddd, eee, aaa, bbb, X[14], 8);
 
-/* parallel round 5 */
+
   FFF (bbb, ccc, ddd, eee, aaa, X[12], 8);
   FFF (aaa, bbb, ccc, ddd, eee, X[15], 5);
   FFF (eee, aaa, bbb, ccc, ddd, X[10], 12);
@@ -295,8 +280,8 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   FFF (ccc, ddd, eee, aaa, bbb, X[9], 11);
   FFF (bbb, ccc, ddd, eee, aaa, X[11], 11);
 
-/* combine results */
-  ddd += cc + MDbuf[1];		/* final result for MDbuf[0] */
+
+  ddd += cc + MDbuf[1];
   MDbuf[1] = MDbuf[2] + dd + eee;
   MDbuf[2] = MDbuf[3] + ee + aaa;
   MDbuf[3] = MDbuf[4] + aa + bbb;
@@ -305,48 +290,40 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
 }
 
 
-/*
-   puts bytes from strptr into X and pad out; appends length
-   and finally, compresses the last block(s)
-   note: length in bits == 8 * (lswlen + 2^32 mswlen).
-   note: there are (lswlen mod 64) bytes left in strptr.
- */
+
 static void
 RMDFinish (uint32_t * MDbuf, uint8_t * strptr, uint32_t lswlen,
            uint32_t mswlen)
 {
-  uint32_t i;			/* counter */
-  uint32_t X[16];		/* message words */
+  uint32_t i;
+  uint32_t X[16];
 
   memset (X, 0, 16 * sizeof (uint32_t));
 
-/* put bytes from strptr into X */
+
   for (i = 0; i < (lswlen & 63); i++)
     {
-      /* byte i goes into word X[i div 4] at pos. 8*(i mod 4) */
+
       X[i >> 2] ^= (uint32_t) * strptr++ << (8 * (i & 3));
     }
 
-  /* append the bit m_n == 1 */
+
   X[(lswlen >> 2) & 15] ^= (uint32_t) 1 << (8 * (lswlen & 3) + 7);
 
   if ((lswlen & 63) > 55)
     {
-      /* length goes to next block */
+
       RMDcompress (MDbuf, X);
       memset (X, 0, 16 * sizeof (uint32_t));
     }
 
-  /* append length in bits */
+
   X[14] = lswlen << 3;
   X[15] = (lswlen >> 29) | (mswlen << 3);
   RMDcompress (MDbuf, X);
 }
 
-/*
-   Shuffle the bytes into little-endian order within words, as per the
-   RIPEMD-160 spec (which follows MD4 conventions).
- */
+
 static void
 rmd160ByteSwap (uint32_t * dest, uint8_t const *src, unsigned int words)
 {
@@ -360,35 +337,31 @@ rmd160ByteSwap (uint32_t * dest, uint8_t const *src, unsigned int words)
 }
 
 
-/*
-   Initialize the RIPEMD-160 values
- */
+
 void
 RMD160Init (RMD160_CTX * ctx)
 {
-  /* Set the h-vars to their initial values */
+
   RMDinit (ctx->iv);
 
-  /* Initialise bit count */
+
   ctx->bytesHi = 0;
   ctx->bytesLo = 0;
 }
 
-/*
-   Update the RIPEMD-160 hash state for a block of data.
- */
+
 void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
 {
   unsigned i;
 
-  /* Update bitcount */
+
   uint32_t t = ctx->bytesLo;
   if ((ctx->bytesLo = t + len) < t)
-    ctx->bytesHi++;		/* Carry from low to high */
+    ctx->bytesHi++;
 
-  i = (unsigned) t % RIPEMD160_BLOCKBYTES;	/* Bytes already in ctx->key */
+  i = (unsigned) t % RIPEMD160_BLOCKBYTES;
 
-  /* i is always less than RIPEMD160_BLOCKBYTES. */
+
   if (RIPEMD160_BLOCKBYTES - i > len)
     {
       memcpy ((uint8_t *) ctx->key + i, buf, len);
@@ -396,7 +369,7 @@ void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
     }
 
   if (i)
-    {				/* First chunk is an odd size */
+    {
       memcpy ((uint8_t *) ctx->key + i, buf, RIPEMD160_BLOCKBYTES - i);
       rmd160ByteSwap (ctx->key, (uint8_t *) ctx->key, RIPEMD160_BLOCKWORDS);
       RMDcompress (ctx->iv, ctx->key);
@@ -404,7 +377,7 @@ void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
       len -= RIPEMD160_BLOCKBYTES - i;
     }
 
-  /* Process data in 64-byte chunks */
+
   while (len >= RIPEMD160_BLOCKBYTES)
     {
       rmd160ByteSwap (ctx->key, buf, RIPEMD160_BLOCKWORDS);
@@ -413,15 +386,13 @@ void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
       len -= RIPEMD160_BLOCKBYTES;
     }
 
-  /* Handle any remaining bytes of data. */
+
   if (len)
     memcpy (ctx->key, buf, len);
 }
 
 
-/*
-   Final wrapup - MD4 style padding on last block.
- */
+
 void
 RMD160Final (unsigned char digest[20], RMD160_CTX * ctx)
 {
@@ -439,7 +410,7 @@ RMD160Final (unsigned char digest[20], RMD160_CTX * ctx)
       digest[i * 4 + 3] = (uint8_t) (t >> 24);
     }
 
-  memset (ctx, 0, sizeof (RMD160_CTX));	/* In case it's sensitive */
+  memset (ctx, 0, sizeof (RMD160_CTX));
 }
 
 void RMD160Data(const unsigned char *buf, unsigned int len, char *out)	{

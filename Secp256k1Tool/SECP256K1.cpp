@@ -1,39 +1,24 @@
-/*
- * This file is part of the BSGS distribution (https://github.com/JeanLucPons/BSGS).
- * Copyright (c) 2020 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include <cstdio>
 #include <cstring>
 #include "SECP256k1.h"
 #include "Point.h"
-#include "../util.h"
-#include "../hash/sha256.h"
-#include "../hash/ripemd160.h"
+#include "util.h"
+#include "sha256.h"
+#include "ripemd160.h"
 
 Secp256K1::Secp256K1() {
 }
 
 void Secp256K1::Init() {
-  // Prime for the finite field
+
   P.SetBase16("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
 
-  // Set up field
+
   Int::SetupField(&P);
 
-  // Generator point and order
+
   G.x.SetBase16("79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798");
   G.y.SetBase16("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8");
   G.z.SetInt32(1);
@@ -41,7 +26,7 @@ void Secp256K1::Init() {
 
   Int::InitK1(&order);
 
-  // Compute Generator table
+
   Point N(G);
   for(int i = 0; i < 32; i++) {
     GTable[i * 256] = N;
@@ -50,7 +35,7 @@ void Secp256K1::Init() {
       GTable[i * 256 + j] = N;
       N = AddDirect(N, GTable[i * 256]);
     }
-    GTable[i * 256 + 255] = N; // Dummy point for check function
+    GTable[i * 256 + 255] = N;
   }
 
 }
@@ -63,7 +48,7 @@ Point Secp256K1::ComputePublicKey(Int *privKey) {
   uint8_t b;
   Point Q;
   Q.Clear();
-  // Search first significant byte
+
   for (i = 0; i < 32; i++) {
     b = privKey->GetByte(i);
     if(b)
@@ -82,8 +67,8 @@ Point Secp256K1::ComputePublicKey(Int *privKey) {
 }
 
 Point Secp256K1::NextKey(Point &key) {
-  // Input key must be reduced and different from G
-  // in order to use AddDirect
+
+
   return AddDirect(key,G);
 }
 
@@ -173,14 +158,14 @@ char* Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey) {
   unsigned char publicKeyBytes[65];
   char *ret = NULL;
   if (!compressed) {
-    //Uncompressed public key
+
     publicKeyBytes[0] = 0x4;
     pubKey.x.Get32Bytes(publicKeyBytes + 1);
     pubKey.y.Get32Bytes(publicKeyBytes + 33);
     ret = (char*) tohex((char*)publicKeyBytes,65);
   }
   else {
-    // Compressed public key
+
     publicKeyBytes[0] = pubKey.y.IsEven() ? 0x2 : 0x3;
     pubKey.x.Get32Bytes(publicKeyBytes + 1);
     ret = (char*) tohex((char*)publicKeyBytes,33);
@@ -191,14 +176,14 @@ char* Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey) {
 void Secp256K1::GetPublicKeyHex(bool compressed, Point &pubKey,char *dst){
   unsigned char publicKeyBytes[65];
   if (!compressed) {
-    //Uncompressed public key
+
     publicKeyBytes[0] = 0x4;
     pubKey.x.Get32Bytes(publicKeyBytes + 1);
     pubKey.y.Get32Bytes(publicKeyBytes + 33);
     tohex_dst((char*)publicKeyBytes,65,dst);
   }
   else {
-    // Compressed public key
+
     publicKeyBytes[0] = pubKey.y.IsEven() ? 0x2 : 0x3;
     pubKey.x.Get32Bytes(publicKeyBytes + 1);
 	tohex_dst((char*)publicKeyBytes,33,dst);
@@ -212,13 +197,13 @@ char* Secp256K1::GetPublicKeyRaw(bool compressed, Point &pubKey) {
     exit(0);
   }
   if (!compressed) {
-    //Uncompressed public key
+
     ret[0] = 0x4;
     pubKey.x.Get32Bytes((unsigned char*) (ret + 1));
     pubKey.y.Get32Bytes((unsigned char*) (ret + 33));
   }
   else {
-    // Compressed public key
+
     ret[0] = pubKey.y.IsEven() ? 0x2 : 0x3;
     pubKey.x.Get32Bytes((unsigned char*) (ret + 1));
   }
@@ -227,13 +212,13 @@ char* Secp256K1::GetPublicKeyRaw(bool compressed, Point &pubKey) {
 
 void Secp256K1::GetPublicKeyRaw(bool compressed, Point &pubKey,char *dst) {
   if (!compressed) {
-    //Uncompressed public key
+
     dst[0] = 0x4;
     pubKey.x.Get32Bytes((unsigned char*) (dst + 1));
     pubKey.y.Get32Bytes((unsigned char*) (dst + 33));
   }
   else {
-    // Compressed public key
+
     dst[0] = pubKey.y.IsEven() ? 0x2 : 0x3;
     pubKey.x.Get32Bytes((unsigned char*) (dst + 1));
   }
@@ -250,23 +235,23 @@ Point Secp256K1::AddDirect(Point &p1,Point &p2) {
   dy.ModSub(&p2.y,&p1.y);
   dx.ModSub(&p2.x,&p1.x);
   dx.ModInv();
-  _s.ModMulK1(&dy,&dx);     // s = (p2.y-p1.y)*inverse(p2.x-p1.x);
+  _s.ModMulK1(&dy,&dx);
 
-  _p.ModSquareK1(&_s);       // _p = pow2(s)
+  _p.ModSquareK1(&_s);
 
   r.x.ModSub(&_p,&p1.x);
-  r.x.ModSub(&p2.x);       // rx = pow2(s) - p1.x - p2.x;
+  r.x.ModSub(&p2.x);
 
   r.y.ModSub(&p2.x,&r.x);
   r.y.ModMulK1(&_s);
-  r.y.ModSub(&p2.y);       // ry = - p2.y - s*(ret.x-p2.x);
+  r.y.ModSub(&p2.y);
 
   return r;
 }
 
 
 Point Secp256K1::Add2(Point &p1, Point &p2) {
-  // P2.z = 1
+
   Int u;
   Int v;
   Int u1;
@@ -325,25 +310,7 @@ Point Secp256K1::Add(Point &p1,Point &p2) {
   Int vs3y1;
   Point r;
 
-  /*
-  U1 = Y2 * Z1
-  U2 = Y1 * Z2
-  V1 = X2 * Z1
-  V2 = X1 * Z2
-  if (V1 == V2)
-    if (U1 != U2)
-      return POINT_AT_INFINITY
-    else
-      return POINT_DOUBLE(X1, Y1, Z1)
-  U = U1 - U2
-  V = V1 - V2
-  W = Z1 * Z2
-  A = U ^ 2 * W - V ^ 3 - 2 * V ^ 2 * V2
-  X3 = V * A
-  Y3 = U * (V ^ 2 * V2 - A) - V ^ 3 * U2
-  Z3 = V ^ 3 * W
-  return (X3, Y3, Z3)
-  */
+
 
   u1.ModMulK1(&p2.y,&p1.z);
   u2.ModMulK1(&p1.y,&p2.z);
@@ -385,34 +352,23 @@ Point Secp256K1::DoubleDirect(Point &p) {
 
   a.ModAdd(&p.y,&p.y);
   a.ModInv();
-  _s.ModMulK1(&_p,&a);     // s = (3*pow2(p.x))*inverse(2*p.y);
+  _s.ModMulK1(&_p,&a);
 
   _p.ModMulK1(&_s,&_s);
   a.ModAdd(&p.x,&p.x);
   a.ModNeg();
-  r.x.ModAdd(&a,&_p);    // rx = pow2(s) + neg(2*p.x);
+  r.x.ModAdd(&a,&_p);
 
   a.ModSub(&r.x,&p.x);
 
   _p.ModMulK1(&a,&_s);
   r.y.ModAdd(&_p,&p.y);
-  r.y.ModNeg();           // ry = neg(p.y + s*(ret.x+neg(p.x)));
+  r.y.ModNeg();
   return r;
 }
 
 Point Secp256K1::Double(Point &p) {
-  /*
-  if (Y == 0)
-    return POINT_AT_INFINITY
-    W = a * Z ^ 2 + 3 * X ^ 2
-    S = Y * Z
-    B = X * Y*S
-    H = W ^ 2 - 8 * B
-    X' = 2*H*S
-    Y' = W*(4*B - H) - 8*Y^2*S^2
-    Z' = 8*S^3
-    return (X', Y', Z')
-  */
+
   Int z2;
   Int x2;
   Int _3x2;
@@ -426,7 +382,7 @@ Point Secp256K1::Double(Point &p) {
   Int h;
   Point r;
   z2.ModSquareK1(&p.z);
-  z2.SetInt32(0); // a=0
+  z2.SetInt32(0);
   x2.ModSquareK1(&p.x);
   _3x2.ModAdd(&x2,&x2);
   _3x2.ModAdd(&x2);
@@ -483,7 +439,7 @@ bool Secp256K1::EC(Point &p) {
   _p.ModAdd(7);
   _s.ModMulK1(&p.y,&p.y);
   _s.ModSub(&_p);
-  return _s.IsZero(); // ( ((pow2(y) - (pow3(x) + 7)) % P) == 0 );
+  return _s.IsZero();
 }
 
 Point Secp256K1::ScalarMultiplication(Point &P,Int *scalar)	{
@@ -648,7 +604,7 @@ void Secp256K1::GetHash160(int type,bool compressed,
 
     GetHash160(P2PKH,compressed,k0,k1,k2,k3,kh0,kh1,kh2,kh3);
 
-    // Redeem Script (1 to 1 P2SH)
+
     uint32_t b0[16];
     uint32_t b1[16];
     uint32_t b2[16];
@@ -683,7 +639,7 @@ void Secp256K1::GetHash160(int type, bool compressed, Point &pubKey, unsigned ch
 
     if (!compressed) {
 
-      // Full public key
+
       publicKeyBytes[0] = 0x4;
       pubKey.x.Get32Bytes(publicKeyBytes + 1);
       pubKey.y.Get32Bytes(publicKeyBytes + 33);
@@ -691,7 +647,7 @@ void Secp256K1::GetHash160(int type, bool compressed, Point &pubKey, unsigned ch
 
     } else {
 
-      // Compressed public key
+
       publicKeyBytes[0] = pubKey.y.IsEven() ? 0x2 : 0x3;
       pubKey.x.Get32Bytes(publicKeyBytes + 1);
       sha256_33(publicKeyBytes, shapk);
@@ -705,11 +661,11 @@ void Secp256K1::GetHash160(int type, bool compressed, Point &pubKey, unsigned ch
   case P2SH:
   {
 
-    // Redeem Script (1 to 1 P2SH)
+
     unsigned char script[64];
 
-    script[0] = 0x00;  // OP_0
-    script[1] = 0x14;  // PUSH 20 bytes
+    script[0] = 0x00;
+    script[1] = 0x14;
     GetHash160(P2PKH, compressed, pubKey, script + 2);
 
     sha256(script, 22, shapk);

@@ -16,4 +16,4 @@ int sha256_4(size_t length, const unsigned char *data0, const unsigned char *dat
              unsigned char *digest0, unsigned char *digest1,
              unsigned char *digest2, unsigned char *digest3);
 
-#endif // HASHSING
+#endif

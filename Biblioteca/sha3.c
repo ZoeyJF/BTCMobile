@@ -1,29 +1,21 @@
 #define	_POSIX_C_SOURCE	200809L
-
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
 #include "keccak.h"
-
 #include "sha3.h"
-
 #define	MIN(a,b)	((a) < (b) ? (a) : (b))
-
 void *(*volatile sha3_explicit_memset_impl)(void *, int, size_t) = &memset;
 static void *
 explicit_memset(void *buf, int c, size_t n)
 {
-
 	return (*sha3_explicit_memset_impl)(buf, c, n);
 }
-
 static inline uint64_t
 le64dec(const void *buf)
 {
 	const uint8_t *p = (const uint8_t *)buf;
-
 	return (((uint64_t)p[0]) |
 	    ((uint64_t)p[1] << 8) |
 	    ((uint64_t)p[2] << 16) |
@@ -33,12 +25,10 @@ le64dec(const void *buf)
 	    ((uint64_t)p[6] << 48) |
 	    ((uint64_t)p[7] << 56));
 }
-
 static inline void
 le64enc(void *buf, uint64_t v)
 {
 	uint8_t *p = (uint8_t *)buf;
-
 	*p++ = v; v >>= 8;
 	*p++ = v; v >>= 8;
 	*p++ = v; v >>= 8;
@@ -48,33 +38,26 @@ le64enc(void *buf, uint64_t v)
 	*p++ = v; v >>= 8;
 	*p++ = v;
 }
-
 static inline unsigned
 sha3_rate(unsigned d)
 {
 	const unsigned cw = 2*d/8;
-
 	return 25 - cw;
 }
-
 static void
 sha3_init(struct sha3 *C, unsigned rw)
 {
 	unsigned iw;
-
 	C->nb = 8*rw;
 	for (iw = 0; iw < 25; iw++)
 		C->A[iw] = 0;
 }
-
 static void
 sha3_update(struct sha3 *C, const uint8_t *data, size_t len, unsigned rw)
 {
 	uint64_t T;
 	unsigned ib, iw;
-
 	assert(0 < C->nb);
-
 	if ((C->nb % 8) != 0) {
 		T = 0;
 		for (ib = 0; ib < MIN(len, C->nb % 8); ib++)
@@ -83,16 +66,13 @@ sha3_update(struct sha3 *C, const uint8_t *data, size_t len, unsigned rw)
 		C->nb -= ib;
 		data += ib;
 		len -= ib;
-
 		if (C->nb == 0) {
 			keccakf1600(C->A);
 			C->nb = 8*rw;
 		}
-
 		if (len == 0)
 			return;
 	}
-
 	assert((C->nb % 8) == 0);
 	if (C->nb < 8*rw) {
 		for (iw = 0; iw < MIN(len, C->nb)/8; iw++)
@@ -100,7 +80,6 @@ sha3_update(struct sha3 *C, const uint8_t *data, size_t len, unsigned rw)
 		C->nb -= 8*iw;
 		data += 8*iw;
 		len -= 8*iw;
-
 		if (C->nb == 0) {
 			keccakf1600(C->A);
 			C->nb = 8*rw;
@@ -109,7 +88,6 @@ sha3_update(struct sha3 *C, const uint8_t *data, size_t len, unsigned rw)
 			goto partial;
 		}
 	}
-
 	assert(C->nb == 8*rw);
 	while (8*rw <= len) {
 		for (iw = 0; iw < rw; iw++)
@@ -118,13 +96,11 @@ sha3_update(struct sha3 *C, const uint8_t *data, size_t len, unsigned rw)
 		data += 8*rw;
 		len -= 8*rw;
 	}
-
 	for (iw = 0; iw < len/8; iw++)
 		C->A[rw - C->nb/8 + iw] ^= le64dec(data + 8*iw);
 	C->nb -= 8*iw;
 	data += 8*iw;
 	len -= 8*iw;
-
 partial:
 	assert(len < 8);
 	assert(0 < C->nb);
@@ -136,23 +112,18 @@ partial:
 	C->nb -= ib;
 	assert(0 < C->nb);
 }
-
 static inline void
 sha3_or_keccak_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw, uint64_t padding)
 {
 	unsigned nw, iw;
-
 	assert(d <= 8*25);
 	assert(0 < C->nb);
-
 	nw = (C->nb + 7)/8;
 	assert(0 < nw);
 	assert(nw <= rw);
 	C->A[rw - nw] ^= padding << (8*(8*nw - C->nb));
 	C->A[rw - 1] ^= 0x8000000000000000ULL;
-
 	keccakf1600(C->A);
-
 	for (iw = 0; iw < d/8; iw++)
 		le64enc(h + 8*iw, C->A[iw]);
 	h += 8*iw;
@@ -167,32 +138,26 @@ sha3_or_keccak_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw, uint64
 	(void)explicit_memset(C->A, 0, sizeof C->A);
 	C->nb = 0;
 }
-
 static void
 sha3_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw)
 {
     sha3_or_keccak_final(h, d, C, rw, 0x06);
 }
-
 static void
 keccak_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw)
 {
     sha3_or_keccak_final(h, d, C, rw, 0x01);
 }
-
 static void
 shake_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw)
 {
 	unsigned nw, iw;
-
 	assert(0 < C->nb);
-
 	nw = (C->nb + 7)/8;
 	assert(0 < nw);
 	assert(nw <= rw);
 	C->A[rw - nw] ^= (uint64_t)0x1f << (8*(8*nw - C->nb));
 	C->A[rw - 1] ^= 0x8000000000000000ULL;
-
 	while (8*rw <= d) {
 		keccakf1600(C->A);
 		for (iw = 0; iw < rw; iw++)
@@ -200,14 +165,12 @@ shake_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw)
 		h += 8*iw;
 		d -= 8*iw;
 	}
-
 	if (0 < d) {
 		keccakf1600(C->A);
 		for (iw = 0; iw < d/8; iw++)
 			le64enc(h + 8*iw, C->A[iw]);
 		h += 8*iw;
 		d -= 8*iw;
-
 		if (0 < d) {
 			uint64_t T = C->A[iw];
 			do {
@@ -216,175 +179,129 @@ shake_final(uint8_t *h, unsigned d, struct sha3 *C, unsigned rw)
 			} while (--d);
 		}
 	}
-
 	(void)explicit_memset(C->A, 0, sizeof C->A);
 	C->nb = 0;
 }
-
 void
 SHA3_224_Init(SHA3_224_CTX *C)
 {
-
 	sha3_init(&C->C224, sha3_rate(SHA3_224_DIGEST_LENGTH));
 }
-
 void
 SHA3_224_Update(SHA3_224_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C224, data, len, sha3_rate(SHA3_224_DIGEST_LENGTH));
 }
-
 void
 SHA3_224_Final(uint8_t h[SHA3_224_DIGEST_LENGTH], SHA3_224_CTX *C)
 {
-
 	sha3_final(h, SHA3_224_DIGEST_LENGTH, &C->C224,
 	    sha3_rate(SHA3_224_DIGEST_LENGTH));
 }
-
 void
 SHA3_256_Init(SHA3_256_CTX *C)
 {
-
 	sha3_init(&C->C256, sha3_rate(SHA3_256_DIGEST_LENGTH));
 }
-
 void
 SHA3_256_Update(SHA3_256_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C256, data, len, sha3_rate(SHA3_256_DIGEST_LENGTH));
 }
-
 void
 SHA3_256_Final(uint8_t h[SHA3_256_DIGEST_LENGTH], SHA3_256_CTX *C)
 {
-
 	sha3_final(h, SHA3_256_DIGEST_LENGTH, &C->C256,
 	    sha3_rate(SHA3_256_DIGEST_LENGTH));
 }
-
 void
 SHA3_384_Init(SHA3_384_CTX *C)
 {
-
 	sha3_init(&C->C384, sha3_rate(SHA3_384_DIGEST_LENGTH));
 }
-
 void
 SHA3_384_Update(SHA3_384_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C384, data, len, sha3_rate(SHA3_384_DIGEST_LENGTH));
 }
-
 void
 SHA3_384_Final(uint8_t h[SHA3_384_DIGEST_LENGTH], SHA3_384_CTX *C)
 {
-
 	sha3_final(h, SHA3_384_DIGEST_LENGTH, &C->C384,
 	    sha3_rate(SHA3_384_DIGEST_LENGTH));
 }
-
 void
 SHA3_512_Init(SHA3_512_CTX *C)
 {
-
 	sha3_init(&C->C512, sha3_rate(SHA3_512_DIGEST_LENGTH));
 }
-
 void
 SHA3_512_Update(SHA3_512_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C512, data, len, sha3_rate(SHA3_512_DIGEST_LENGTH));
 }
-
 void
 SHA3_512_Final(uint8_t h[SHA3_512_DIGEST_LENGTH], SHA3_512_CTX *C)
 {
-
 	sha3_final(h, SHA3_512_DIGEST_LENGTH, &C->C512,
 	    sha3_rate(SHA3_512_DIGEST_LENGTH));
 }
-
 void
 SHAKE128_Init(SHAKE128_CTX *C)
 {
-
 	sha3_init(&C->C128, sha3_rate(128/8));
 }
-
 void
 SHAKE128_Update(SHAKE128_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C128, data, len, sha3_rate(128/8));
 }
-
 void
 SHAKE128_Final(uint8_t *h, size_t d, SHAKE128_CTX *C)
 {
-
 	shake_final(h, d, &C->C128, sha3_rate(128/8));
 }
-
 void
 SHAKE256_Init(SHAKE256_CTX *C)
 {
-
 	sha3_init(&C->C256, sha3_rate(256/8));
 }
-
 void
 SHAKE256_Update(SHAKE256_CTX *C, const uint8_t *data, size_t len)
 {
-
 	sha3_update(&C->C256, data, len, sha3_rate(256/8));
 }
-
 void
 SHAKE256_Final(uint8_t *h, size_t d, SHAKE256_CTX *C)
 {
-
 	shake_final(h, d, &C->C256, sha3_rate(256/8));
 }
-
 void
 KECCAK_256_Final(uint8_t h[SHA3_256_DIGEST_LENGTH], SHA3_256_CTX *C)
 {
-
 	keccak_final(h, SHA3_256_DIGEST_LENGTH, &C->C256,
 	    sha3_rate(SHA3_256_DIGEST_LENGTH));
 }
-
 void
 KECCAK_384_Final(uint8_t h[SHA3_384_DIGEST_LENGTH], SHA3_384_CTX *C)
 {
-
 	keccak_final(h, SHA3_384_DIGEST_LENGTH, &C->C384,
 	    sha3_rate(SHA3_384_DIGEST_LENGTH));
 }
-
 void
 KECCAK_512_Final(uint8_t h[SHA3_512_DIGEST_LENGTH], SHA3_512_CTX *C)
 {
-
 	keccak_final(h, SHA3_512_DIGEST_LENGTH, &C->C512,
 	    sha3_rate(SHA3_512_DIGEST_LENGTH));
 }
-
 static void
 sha3_selftest_prng(void *buf, size_t len, uint32_t seed)
 {
 	uint8_t *p = (uint8_t *)buf;
 	size_t n = len;
 	uint32_t t, a, b;
-
 	a = 0xdead4bad * seed;
 	b = 1;
-
 	while (n--) {
 		t = a + b;
 		*p++ = t >> 24;
@@ -392,7 +309,6 @@ sha3_selftest_prng(void *buf, size_t len, uint32_t seed)
 		b = t;
 	}
 }
-
 int
 SHA3_Selftest(void)
 {
@@ -512,7 +428,6 @@ SHA3_Selftest(void)
 	SHAKE256_CTX shake256;
 	SHA3_512_CTX ctx;
 	unsigned mi;
-
 	SHA3_224_Init(&sha3224);
 	SHA3_224_Final(d, &sha3224);
 	if (memcmp(d, d224_0, 28) != 0)
@@ -537,7 +452,6 @@ SHA3_Selftest(void)
 	SHAKE256_Final(d, 73, &shake256);
 	if (memcmp(d, shake256_0_73, 73) != 0)
 		return -1;
-
 	(void)memset(m, 0xa3, 200);
 	SHA3_224_Init(&sha3224);
 	SHA3_224_Update(&sha3224, m, 200);
@@ -569,7 +483,6 @@ SHA3_Selftest(void)
 	SHAKE256_Final(d, 73, &shake256);
 	if (memcmp(d, shake256_1600_73, 73) != 0)
 		return -1;
-
 	SHA3_512_Init(&ctx);
 	for (mi = 0; mi < 6; mi++) {
 		sha3_selftest_prng(m, mlen[mi], (224/8)*mlen[mi]);
@@ -602,7 +515,5 @@ SHA3_Selftest(void)
 	SHA3_512_Final(d, &ctx);
 	if (memcmp(d, d0, 64) != 0)
 		return -1;
-
 	return 0;
 }
-

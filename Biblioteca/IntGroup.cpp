@@ -1,39 +1,33 @@
 #include "IntGroup.h"
-#include <stdlib.h>
-using namespace std;
-
 IntGroup::IntGroup(int size) {
   this->size = size;
-  subp = (Int *)calloc(size,sizeof(Int));
+  subp = new Int[size];
 }
-
 IntGroup::~IntGroup() {
-  free(subp);
+  delete[] subp;
 }
-
 void IntGroup::Set(Int *pts) {
   ints = pts;
 }
-
-void IntGroup::ModInv() {
-
+void IntGroup::ModInv(int count) {
+  int n = (count <= 0 || count > size) ? size : count;
+  if (n <= 0) return;
+  if (n == 1) {
+    ints[0].ModInv();
+    return;
+  }
   Int newValue;
   Int inverse;
-
   subp[0].Set(&ints[0]);
-  for (int i = 1; i < size; i++) {
+  for (int i = 1; i < n; i++) {
     subp[i].ModMulK1(&subp[i - 1], &ints[i]);
   }
-
-  inverse.Set(&subp[size - 1]);
+  inverse.Set(&subp[n - 1]);
   inverse.ModInv();
-
-  for (int i = size - 1; i > 0; i--) {
+  for (int i = n - 1; i > 0; i--) {
     newValue.ModMulK1(&subp[i - 1], &inverse);
     inverse.ModMulK1(&ints[i]);
     ints[i].Set(&newValue);
   }
-
   ints[0].Set(&inverse);
-
 }

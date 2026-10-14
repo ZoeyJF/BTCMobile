@@ -82,4 +82,3 @@ int  btc_pin_thread(int cpu_id);
 int  btc_write_found(const char *priv_hex, const char *hash_hex, int range_bits, int subrange_id, const char *timestamp_utc);
 int  btc_run_engine(config_t *cfg);
 #endif
-

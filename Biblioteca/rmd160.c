@@ -1,75 +1,61 @@
 #include <string.h>
-
 #include "rmd160.h"
-
 #define ROL(x, n) (((x) << (n)) | ((x) >> (32-(n))))
-
 #define F(x, y, z)	((x) ^ (y) ^ (z))
 #define G(x, y, z)	(((x) & (y)) | (~(x) & (z)))
 #define H(x, y, z)	(((x) | ~(y)) ^ (z))
 #define I(x, y, z)	(((x) & (z)) | ((y) & ~(z)))
 #define J(x, y, z)	((x) ^ ((y) | ~(z)))
-
 #define FF(a, b, c, d, e, x, s)	{\
 	(a) += F((b), (c), (d)) + (x);\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define GG(a, b, c, d, e, x, s)	{\
 	(a) += G((b), (c), (d)) + (x) + 0x5a827999UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define HH(a, b, c, d, e, x, s) {\
 	(a) += H((b), (c), (d)) + (x) + 0x6ed9eba1UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define II(a, b, c, d, e, x, s) {\
 	(a) += I((b), (c), (d)) + (x) + 0x8f1bbcdcUL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define JJ(a, b, c, d, e, x, s) {\
 	(a) += J((b), (c), (d)) + (x) + 0xa953fd4eUL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define FFF(a, b, c, d, e, x, s)	{\
 	(a) += F((b), (c), (d)) + (x);\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define GGG(a, b, c, d, e, x, s)	{\
 	(a) += G((b), (c), (d)) + (x) + 0x7a6d76e9UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define HHH(a, b, c, d, e, x, s) {\
 	(a) += H((b), (c), (d)) + (x) + 0x6d703ef3UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define III(a, b, c, d, e, x, s) {\
 	(a) += I((b), (c), (d)) + (x) + 0x5c4dd124UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 #define JJJ(a, b, c, d, e, x, s) {\
 	(a) += J((b), (c), (d)) + (x) + 0x50a28be6UL;\
 	(a) = ROL((a), (s)) + (e);\
 	(c) = ROL((c), 10);\
 	}
-
 static void
 RMDinit (uint32_t * MDbuf)
 {
@@ -79,7 +65,6 @@ RMDinit (uint32_t * MDbuf)
   MDbuf[3] = 0x10325476UL;
   MDbuf[4] = 0xc3d2e1f0UL;
 }
-
 static void
 RMDcompress (uint32_t * MDbuf, uint32_t * X)
 {
@@ -87,7 +72,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
             dd = MDbuf[3], ee = MDbuf[4];
   uint32_t aaa = MDbuf[0], bbb = MDbuf[1], ccc = MDbuf[2],
             ddd = MDbuf[3], eee = MDbuf[4];
-
   FF (aa, bb, cc, dd, ee, X[0], 11);
   FF (ee, aa, bb, cc, dd, X[1], 14);
   FF (dd, ee, aa, bb, cc, X[2], 15);
@@ -104,7 +88,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   FF (cc, dd, ee, aa, bb, X[13], 7);
   FF (bb, cc, dd, ee, aa, X[14], 9);
   FF (aa, bb, cc, dd, ee, X[15], 8);
-
   GG (ee, aa, bb, cc, dd, X[7], 7);
   GG (dd, ee, aa, bb, cc, X[4], 6);
   GG (cc, dd, ee, aa, bb, X[13], 8);
@@ -121,7 +104,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   GG (bb, cc, dd, ee, aa, X[14], 7);
   GG (aa, bb, cc, dd, ee, X[11], 13);
   GG (ee, aa, bb, cc, dd, X[8], 12);
-
   HH (dd, ee, aa, bb, cc, X[3], 11);
   HH (cc, dd, ee, aa, bb, X[10], 13);
   HH (bb, cc, dd, ee, aa, X[14], 6);
@@ -138,7 +120,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   HH (aa, bb, cc, dd, ee, X[11], 12);
   HH (ee, aa, bb, cc, dd, X[5], 7);
   HH (dd, ee, aa, bb, cc, X[12], 5);
-
   II (cc, dd, ee, aa, bb, X[1], 11);
   II (bb, cc, dd, ee, aa, X[9], 12);
   II (aa, bb, cc, dd, ee, X[11], 14);
@@ -155,7 +136,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   II (ee, aa, bb, cc, dd, X[5], 6);
   II (dd, ee, aa, bb, cc, X[6], 5);
   II (cc, dd, ee, aa, bb, X[2], 12);
-
   JJ (bb, cc, dd, ee, aa, X[4], 9);
   JJ (aa, bb, cc, dd, ee, X[0], 15);
   JJ (ee, aa, bb, cc, dd, X[5], 5);
@@ -172,7 +152,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   JJ (dd, ee, aa, bb, cc, X[6], 8);
   JJ (cc, dd, ee, aa, bb, X[15], 5);
   JJ (bb, cc, dd, ee, aa, X[13], 6);
-
   JJJ (aaa, bbb, ccc, ddd, eee, X[5], 8);
   JJJ (eee, aaa, bbb, ccc, ddd, X[14], 9);
   JJJ (ddd, eee, aaa, bbb, ccc, X[7], 9);
@@ -189,7 +168,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   JJJ (ccc, ddd, eee, aaa, bbb, X[10], 14);
   JJJ (bbb, ccc, ddd, eee, aaa, X[3], 12);
   JJJ (aaa, bbb, ccc, ddd, eee, X[12], 6);
-
   III (eee, aaa, bbb, ccc, ddd, X[6], 9);
   III (ddd, eee, aaa, bbb, ccc, X[11], 13);
   III (ccc, ddd, eee, aaa, bbb, X[3], 15);
@@ -206,7 +184,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   III (bbb, ccc, ddd, eee, aaa, X[9], 15);
   III (aaa, bbb, ccc, ddd, eee, X[1], 13);
   III (eee, aaa, bbb, ccc, ddd, X[2], 11);
-
   HHH (ddd, eee, aaa, bbb, ccc, X[15], 9);
   HHH (ccc, ddd, eee, aaa, bbb, X[5], 7);
   HHH (bbb, ccc, ddd, eee, aaa, X[1], 15);
@@ -223,7 +200,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   HHH (aaa, bbb, ccc, ddd, eee, X[0], 13);
   HHH (eee, aaa, bbb, ccc, ddd, X[4], 7);
   HHH (ddd, eee, aaa, bbb, ccc, X[13], 5);
-
   GGG (ccc, ddd, eee, aaa, bbb, X[8], 15);
   GGG (bbb, ccc, ddd, eee, aaa, X[6], 5);
   GGG (aaa, bbb, ccc, ddd, eee, X[4], 8);
@@ -240,7 +216,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   GGG (eee, aaa, bbb, ccc, ddd, X[7], 5);
   GGG (ddd, eee, aaa, bbb, ccc, X[10], 15);
   GGG (ccc, ddd, eee, aaa, bbb, X[14], 8);
-
   FFF (bbb, ccc, ddd, eee, aaa, X[12], 8);
   FFF (aaa, bbb, ccc, ddd, eee, X[15], 5);
   FFF (eee, aaa, bbb, ccc, ddd, X[10], 12);
@@ -257,7 +232,6 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   FFF (ddd, eee, aaa, bbb, ccc, X[3], 13);
   FFF (ccc, ddd, eee, aaa, bbb, X[9], 11);
   FFF (bbb, ccc, ddd, eee, aaa, X[11], 11);
-
   ddd += cc + MDbuf[1];
   MDbuf[1] = MDbuf[2] + dd + eee;
   MDbuf[2] = MDbuf[3] + ee + aaa;
@@ -265,34 +239,27 @@ RMDcompress (uint32_t * MDbuf, uint32_t * X)
   MDbuf[4] = MDbuf[0] + bb + ccc;
   MDbuf[0] = ddd;
 }
-
 static void
 RMDFinish (uint32_t * MDbuf, uint8_t * strptr, uint32_t lswlen,
            uint32_t mswlen)
 {
   uint32_t i;
   uint32_t X[16];
-
   memset (X, 0, 16 * sizeof (uint32_t));
-
   for (i = 0; i < (lswlen & 63); i++)
     {
       X[i >> 2] ^= (uint32_t) * strptr++ << (8 * (i & 3));
     }
-
   X[(lswlen >> 2) & 15] ^= (uint32_t) 1 << (8 * (lswlen & 3) + 7);
-
   if ((lswlen & 63) > 55)
     {
       RMDcompress (MDbuf, X);
       memset (X, 0, 16 * sizeof (uint32_t));
     }
-
   X[14] = lswlen << 3;
   X[15] = (lswlen >> 29) | (mswlen << 3);
   RMDcompress (MDbuf, X);
 }
-
 static void
 rmd160ByteSwap (uint32_t * dest, uint8_t const *src, unsigned int words)
 {
@@ -304,32 +271,25 @@ rmd160ByteSwap (uint32_t * dest, uint8_t const *src, unsigned int words)
     }
   while (--words);
 }
-
 void
 RMD160Init (RMD160_CTX * ctx)
 {
   RMDinit (ctx->iv);
-
   ctx->bytesHi = 0;
   ctx->bytesLo = 0;
 }
-
 void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
 {
   unsigned i;
-
   uint32_t t = ctx->bytesLo;
   if ((ctx->bytesLo = t + len) < t)
     ctx->bytesHi++;
-
   i = (unsigned) t % RIPEMD160_BLOCKBYTES;
-
   if (RIPEMD160_BLOCKBYTES - i > len)
     {
       memcpy ((uint8_t *) ctx->key + i, buf, len);
       return;
     }
-
   if (i)
     {
       memcpy ((uint8_t *) ctx->key + i, buf, RIPEMD160_BLOCKBYTES - i);
@@ -338,7 +298,6 @@ void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
       buf += RIPEMD160_BLOCKBYTES - i;
       len -= RIPEMD160_BLOCKBYTES - i;
     }
-
   while (len >= RIPEMD160_BLOCKBYTES)
     {
       rmd160ByteSwap (ctx->key, buf, RIPEMD160_BLOCKWORDS);
@@ -346,19 +305,15 @@ void   RMD160Update(RMD160_CTX *ctx, const unsigned char *buf, unsigned int len)
       buf += RIPEMD160_BLOCKBYTES;
       len -= RIPEMD160_BLOCKBYTES;
     }
-
   if (len)
     memcpy (ctx->key, buf, len);
 }
-
 void
 RMD160Final (unsigned char digest[20], RMD160_CTX * ctx)
 {
   int i;
   uint32_t t;
-
   RMDFinish (ctx->iv, (uint8_t *) ctx->key, ctx->bytesLo, ctx->bytesHi);
-
   for (i = 0; i < RIPEMD160_HASHWORDS; i++)
     {
       t = ctx->iv[i];
@@ -367,14 +322,11 @@ RMD160Final (unsigned char digest[20], RMD160_CTX * ctx)
       digest[i * 4 + 2] = (uint8_t) (t >> 16);
       digest[i * 4 + 3] = (uint8_t) (t >> 24);
     }
-
   memset (ctx, 0, sizeof (RMD160_CTX));
 }
-
 void RMD160Data(const unsigned char *buf, unsigned int len, char *out)	{
 	RMD160_CTX ctx;
 	RMD160Init(&ctx);
 	RMD160Update(&ctx,(unsigned char *)buf,len);
 	RMD160Final((unsigned char *)out,&ctx);
 }
-

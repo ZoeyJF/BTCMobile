@@ -1,8 +1,6 @@
 #ifndef POINTH
 #define POINTH
-
 #include "Int.h"
-
 class Point {
 public:
 	Point();
@@ -21,5 +19,4 @@ public:
 	Int y;
 	Int z;
 };
-
 #endif

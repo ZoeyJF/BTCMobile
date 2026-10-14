@@ -1,11 +1,9 @@
 #ifndef ADDRESSHELPER_H
 #define ADDRESSHELPER_H
-
 #include <string>
 #include <cstddef>
 #include "Int.h"
 #include "Point.h"
-
 struct DerivedInfo {
     std::string privkey_hex;
     std::string pubkey_compressed_hex;
@@ -17,9 +15,7 @@ struct DerivedInfo {
     std::string btc_p2wpkh_bech32;
     std::string eth_address;
 };
-
 int derive_all_info(Int &priv, Point &pub, DerivedInfo &out);
-
 void format_extended_entry(const DerivedInfo &info,
                            int range_bits,
                            int subrange_id,
@@ -27,6 +23,4 @@ void format_extended_entry(const DerivedInfo &info,
                            const char *timestamp_utc,
                            char *out,
                            size_t out_size);
-
 #endif
-

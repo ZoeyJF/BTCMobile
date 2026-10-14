@@ -3,14 +3,12 @@
 #include <cstring>
 #include <cstdint>
 #include <cstdio>
-
 static inline uint64_t splitmix64(uint64_t x) {
     x += 0x9E3779B97F4A7C15ULL;
     x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ULL;
     x = (x ^ (x >> 27)) * 0x94D049BB133111EBULL;
     return x ^ (x >> 31);
 }
-
 static inline uint64_t hash_key(const uint8_t *key, uint64_t len, uint64_t seed) {
     uint64_t h = seed;
     for (uint64_t i = 0; i < len; i++) {
@@ -18,22 +16,16 @@ static inline uint64_t hash_key(const uint8_t *key, uint64_t len, uint64_t seed)
     }
     return splitmix64(h ^ (uint64_t)len);
 }
-
 #define BLOOM_K 10
-
 int xorfilter_build(xorfilter_t *f, const uint8_t *keys, uint64_t n, uint8_t bits) {
     if (!f || !keys || n == 0) return -1;
     (void)bits;
-
     uint64_t m_bits = (uint64_t)n * 15ULL + 128ULL;
     m_bits = (m_bits + 63ULL) & ~63ULL;
     uint64_t m_bytes = m_bits / 8ULL;
-
     uint8_t *filter = (uint8_t*)calloc(m_bytes, 1);
     if (!filter) return -1;
-
     uint64_t seed = 0x9E3779B97F4A7C15ULL;
-
     for (uint64_t i = 0; i < n; i++) {
         const uint8_t *k = keys + i * 20;
         uint64_t h1 = hash_key(k, 20, seed);
@@ -44,7 +36,6 @@ int xorfilter_build(xorfilter_t *f, const uint8_t *keys, uint64_t n, uint8_t bit
             filter[pos >> 3] |= (uint8_t)(1u << (pos & 7));
         }
     }
-
     f->fingerprints = filter;
     f->array_length = m_bytes;
     f->block_length = m_bits;
@@ -53,7 +44,6 @@ int xorfilter_build(xorfilter_t *f, const uint8_t *keys, uint64_t n, uint8_t bit
     f->entry_count = n;
     return 0;
 }
-
 int xorfilter_contains(const xorfilter_t *f, const uint8_t *key, uint64_t key_len) {
     if (!f || !f->fingerprints) return 0;
     uint64_t m_bits = (uint64_t)f->array_length * 8ULL;
@@ -68,7 +58,6 @@ int xorfilter_contains(const xorfilter_t *f, const uint8_t *key, uint64_t key_le
     }
     return 1;
 }
-
 void xorfilter_free(xorfilter_t *f) {
     if (!f) return;
     free(f->fingerprints);
@@ -77,4 +66,3 @@ void xorfilter_free(xorfilter_t *f) {
     f->block_length = 0;
     f->entry_count = 0;
 }
-

@@ -6,7 +6,6 @@
 #include <unistd.h>
 #include <sched.h>
 #include <pthread.h>
-
 int btc_load_idx(const char *idx_path, idx_table_t *table) {
     FILE *f = fopen(idx_path, "rb");
     if (!f) return -1;
@@ -21,12 +20,10 @@ int btc_load_idx(const char *idx_path, idx_table_t *table) {
     fclose(f);
     return 0;
 }
-
 void btc_free_idx(idx_table_t *table) {
     if (table->records) { free(table->records); table->records = NULL; }
     table->count = 0;
 }
-
 int btc_load_xor(const char *xor_path, xor_table_t *table) {
     FILE *f = fopen(xor_path, "rb");
     if (!f) return -1;
@@ -53,11 +50,9 @@ int btc_load_xor(const char *xor_path, xor_table_t *table) {
     fclose(f);
     return 0;
 }
-
 void btc_free_xor(xor_table_t *table) {
     if (table->fingerprints) { free(table->fingerprints); table->fingerprints = NULL; }
 }
-
 int btc_binary_search_idx(const idx_table_t *table, const uint8_t hash[HASH160_LEN], uint64_t *record_index) {
     int64_t left = 0, right = (int64_t)table->count - 1;
     while (left <= right) {
@@ -69,7 +64,6 @@ int btc_binary_search_idx(const idx_table_t *table, const uint8_t hash[HASH160_L
     }
     return 0;
 }
-
 int btc_xor_contains(const xor_table_t *table, const uint8_t *key, uint64_t key_len) {
     xorfilter_t xf;
     xf.fingerprints = table->fingerprints;
@@ -80,7 +74,6 @@ int btc_xor_contains(const xor_table_t *table, const uint8_t *key, uint64_t key_
     xf.entry_count = table->entry_count;
     return xorfilter_contains(&xf, key, key_len);
 }
-
 int btc_confirm_bin(FILE *bin, uint64_t record_index, const uint8_t hash[HASH160_LEN]) {
     uint8_t buffer[HASH160_LEN];
     long offset = (long)(record_index * HASH160_LEN);
@@ -88,7 +81,6 @@ int btc_confirm_bin(FILE *bin, uint64_t record_index, const uint8_t hash[HASH160
     if (fread(buffer, 1, HASH160_LEN, bin) != HASH160_LEN) return 0;
     return memcmp(buffer, hash, HASH160_LEN) == 0 ? 1 : 0;
 }
-
 int btc_detect_cores(int *total_cores, int *big_cores, int *little_cores) {
     long cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (cores < 1) cores = 1;
@@ -98,14 +90,12 @@ int btc_detect_cores(int *total_cores, int *big_cores, int *little_cores) {
     *little_cores = *total_cores - *big_cores;
     return 0;
 }
-
 int btc_pin_thread(int cpu_id) {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(cpu_id, &cpuset);
     return pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
 }
-
 int btc_write_found(const char *priv_hex, const char *hash_hex, int range_bits, int subrange_id, const char *timestamp_utc) {
     FILE *f = fopen(FOUND_FILE, "a");
     if (!f) return -1;
@@ -113,6 +103,4 @@ int btc_write_found(const char *priv_hex, const char *hash_hex, int range_bits, 
     fclose(f);
     return 0;
 }
-
 int btc_run_engine(config_t *cfg) { (void)cfg; return 0; }
-

@@ -5,9 +5,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <string>
-
 namespace _ripemd160 {
-
 void inline Initialize(uint32_t* s)
 {
     s[0] = 0x67452301ul;
@@ -16,26 +14,21 @@ void inline Initialize(uint32_t* s)
     s[3] = 0x10325476ul;
     s[4] = 0xC3D2E1F0ul;
 }
-
 #ifndef WIN64
 inline uint32_t _rotl(uint32_t x, uint8_t r) {
   x = (x << r) | (x >> (32 - r));
   return x;
 }
 #endif
-
 #define ROL(x,n) _rotl(x,n)
-
 #define f1(x, y, z) (x ^ y ^ z)
 #define f2(x, y, z) ((x & y) | (~x & z))
 #define f3(x, y, z) ((x | ~y) ^ z)
 #define f4(x, y, z) ((x & z) | (~z & y))
 #define f5(x, y, z) (x ^ (y | ~z))
-
 #define Round(a,b,c,d,e,f,x,k,r) \
   a = ROL(a + f + x + k, r) + e; \
   c = ROL(c, 10);
-
 #define R11(a,b,c,d,e,x,r) Round(a, b, c, d, e, f1(b, c, d), x, 0, r)
 #define R21(a,b,c,d,e,x,r) Round(a, b, c, d, e, f2(b, c, d), x, 0x5A827999ul, r)
 #define R31(a,b,c,d,e,x,r) Round(a, b, c, d, e, f3(b, c, d), x, 0x6ED9EBA1ul, r)
@@ -46,14 +39,12 @@ inline uint32_t _rotl(uint32_t x, uint8_t r) {
 #define R32(a,b,c,d,e,x,r) Round(a, b, c, d, e, f3(b, c, d), x, 0x6D703EF3ul, r)
 #define R42(a,b,c,d,e,x,r) Round(a, b, c, d, e, f2(b, c, d), x, 0x7A6D76E9ul, r)
 #define R52(a,b,c,d,e,x,r) Round(a, b, c, d, e, f1(b, c, d), x, 0, r)
-
 void Transform(uint32_t* s, const unsigned char* chunk)
 {
     uint32_t a1 = s[0], b1 = s[1], c1 = s[2], d1 = s[3], e1 = s[4];
     uint32_t a2 = a1, b2 = b1, c2 = c1, d2 = d1, e2 = e1;
     uint32_t w[16];
     memcpy(w,chunk,16*sizeof(uint32_t));
-
     R11(a1, b1, c1, d1, e1, w[0], 11);
     R12(a2, b2, c2, d2, e2, w[5], 8);
     R11(e1, a1, b1, c1, d1, w[1], 14);
@@ -86,7 +77,6 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     R12(b2, c2, d2, e2, a2, w[3], 12);
     R11(a1, b1, c1, d1, e1, w[15], 8);
     R12(a2, b2, c2, d2, e2, w[12], 6);
-
     R21(e1, a1, b1, c1, d1, w[7], 7);
     R22(e2, a2, b2, c2, d2, w[6], 9);
     R21(d1, e1, a1, b1, c1, w[4], 6);
@@ -119,7 +109,6 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     R22(a2, b2, c2, d2, e2, w[1], 13);
     R21(e1, a1, b1, c1, d1, w[8], 12);
     R22(e2, a2, b2, c2, d2, w[2], 11);
-
     R31(d1, e1, a1, b1, c1, w[3], 11);
     R32(d2, e2, a2, b2, c2, w[15], 9);
     R31(c1, d1, e1, a1, b1, w[10], 13);
@@ -152,7 +141,6 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     R32(e2, a2, b2, c2, d2, w[4], 7);
     R31(d1, e1, a1, b1, c1, w[12], 5);
     R32(d2, e2, a2, b2, c2, w[13], 5);
-
     R41(c1, d1, e1, a1, b1, w[1], 11);
     R42(c2, d2, e2, a2, b2, w[8], 15);
     R41(b1, c1, d1, e1, a1, w[9], 12);
@@ -185,7 +173,6 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     R42(d2, e2, a2, b2, c2, w[10], 15);
     R41(c1, d1, e1, a1, b1, w[2], 12);
     R42(c2, d2, e2, a2, b2, w[14], 8);
-
     R51(b1, c1, d1, e1, a1, w[4], 9);
     R52(b2, c2, d2, e2, a2, w[12], 8);
     R51(a1, b1, c1, d1, e1, w[0], 15);
@@ -218,7 +205,6 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     R52(c2, d2, e2, a2, b2, w[9], 11);
     R51(b1, c1, d1, e1, a1, w[13], 6);
     R52(b2, c2, d2, e2, a2, w[11], 11);
-
     uint32_t t = s[0];
     s[0] = s[1] + c1 + d2;
     s[1] = s[2] + d1 + e2;
@@ -226,14 +212,11 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     s[3] = s[4] + a1 + b2;
     s[4] = t + b1 + c2;
 }
-
 }
-
 CRIPEMD160::CRIPEMD160() : bytes(0)
 {
   _ripemd160::Initialize(s);
 }
-
 void CRIPEMD160::Write(const unsigned char* data, size_t len)
 {
     const unsigned char* end = data + len;
@@ -255,7 +238,6 @@ void CRIPEMD160::Write(const unsigned char* data, size_t len)
         bytes += end - data;
     }
 }
-
 void CRIPEMD160::Finalize(unsigned char hash[20])
 {
     static const unsigned char pad[64] = {0x80};
@@ -265,34 +247,24 @@ void CRIPEMD160::Finalize(unsigned char hash[20])
     Write(sizedesc, 8);
     memcpy(hash,s,20);
 }
-
 static const uint64_t sizedesc_32 = 32 << 3;
 static const unsigned char pad[64] = { 0x80 };
-
 void ripemd160_32(unsigned char *input, unsigned char *digest) {
-
   uint32_t *s = (uint32_t *)digest;
   _ripemd160::Initialize(s);
   memcpy(input+32,pad,24);
   memcpy(input+56,&sizedesc_32,8);
   _ripemd160::Transform(s, input);
-
 }
-
 void ripemd160(unsigned char *input,int length,unsigned char *digest) {
-
 	CRIPEMD160 cripe;
 	cripe.Write(input,length);
 	cripe.Finalize(digest);
-
 }
-
 std::string ripemd160_hex(unsigned char *digest) {
-
   char buf[2 * 20 + 1];
   buf[2 * 20] = 0;
   for (int i = 0; i < 20; i++)
     sprintf(buf + i * 2, "%02x", (int)digest[i]);
   return std::string(buf);
-
 }

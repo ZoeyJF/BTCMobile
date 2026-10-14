@@ -238,6 +238,7 @@ static void ui_draw(void) {
     if (elapsed < 0) elapsed = 0;
     uint64_t ck = g_checked.load();
     uint64_t fd = g_found.load();
+    uint64_t dv = g_derive_count.load();
     uint64_t xh = g_xor_hits.load();
     uint64_t xfp = g_xor_fp.load();
     double total_speed = 0.0;
@@ -450,6 +451,9 @@ static void ui_draw(void) {
     if (row < max_rows) { cprintf("--------------------------------------------------------------------------------"); row++; }
     if (row < max_rows) { cprintf("================================================================================"); row++; }
     double fp_rate = xh > 0 ? (double)xfp / (double)xh : 0.0;
+    char dvbuf[32];
+    format_commas(dv, dvbuf, sizeof(dvbuf));
+    if (row < max_rows) { cprintf("<x> [Derivations : %s]", dvbuf); row++; }
     if (row < max_rows) { cprintf("<x> [Xor-Filter : %.2f]  False Positives", fp_rate); row++; }
     if (row < max_rows) { cprintf("--------------------------------------------------------------------------------"); row++; }
     if (row < max_rows) { cprintf("================================================================================"); row++; }
@@ -1054,7 +1058,8 @@ static void run_bidir_quad(thread_arg_t *a) {
         batch_count++;
         if (dir == 1) {
             if (cur.IsGreaterOrEqual(&a->end)) {
-                cur.Set(&a->start);
+                dir = -1;
+                cur.Set(&a->end);
                 derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
             } else {
                 cur.Add(&one);
@@ -1065,7 +1070,8 @@ static void run_bidir_quad(thread_arg_t *a) {
             }
         } else {
             if (cur.IsLowerOrEqual(&a->start)) {
-                cur.Set(&a->end);
+                dir = 1;
+                cur.Set(&a->start);
                 derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
             } else {
                 cur.Sub((uint32_t)1);
@@ -1254,7 +1260,9 @@ static void run_pure(thread_arg_t *a) {
         Int rand_sub;
         Int min_s((uint32_t)0), max_s((uint32_t)99);
         rand_sub.Rand(&min_s, &max_s);
-        int sid = (int)(rand_sub.GetInt32() % 100);
+        int sid = (int)rand_sub.GetInt32();
+        if (sid < 0) sid = 0;
+        if (sid > 99) sid = 99;
         g_current_subrange.store(sid);
         subrange_bounds(rbits, sid, 100, &s, &e);
         a->range_bits = rbits;

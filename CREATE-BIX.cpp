@@ -404,7 +404,7 @@ static int stage_write_idx_full(uint8_t *map, uint64_t n, size_t sz) {
     double last_print = t0;
     for (uint64_t i = 0; i < n; i++) {
         uint64_t off = i;
-       memcpy(entry, map + i * HASH160_LEN, HASH160_LEN);
+        memcpy(entry, map + i * HASH160_LEN, HASH160_LEN);
         memcpy(entry + HASH160_LEN, &off, 8);
         if (fwrite(entry, 1, IDX_FULL_ENTRY_SIZE, fidx) != IDX_FULL_ENTRY_SIZE) {
             fprintf(stderr, "\n[CREATE] write to %s failed at %llu\n",

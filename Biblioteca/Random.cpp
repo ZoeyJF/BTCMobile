@@ -3,6 +3,7 @@
 #include <cstring>
 #include <random>
 #include <gmp.h>
+
 #if defined(_WIN32) || defined(_WIN64)
     #include <Windows.h>
     #include <bcrypt.h>
@@ -16,7 +17,9 @@
         #define USE_GETRANDOM
     #endif
 #endif
+
 #include "Int.h"
+
 struct ThreadRandState {
     gmp_randstate_t state;
     bool inited;
@@ -49,21 +52,35 @@ struct ThreadRandState {
         return state;
     }
 };
+
 static thread_local ThreadRandState tl_rand;
+
 void int_randominit() {
     tl_rand.get();
 }
+
 void Int::Rand(int nbit) {
     mpz_urandomb(num, tl_rand.get(), nbit);
     mpz_setbit(num, nbit - 1);
 }
+
 void Int::Rand(Int *min, Int *max) {
+    if (min->IsEqual(max) || min->IsGreater(max)) {
+        this->Set(min);
+        return;
+    }
     Int diff(max);
     diff.Sub(min);
-    this->Rand(256);
-    this->Mod(&diff);
+    int bits = diff.GetBitLength();
+    if (bits <= 0) bits = 1;
+    Int candidate;
+    do {
+        mpz_urandomb(candidate.num, tl_rand.get(), bits);
+    } while (candidate.IsGreater(&diff));
+    this->Set(&candidate);
     this->Add(min);
 }
+
 int random_bytes(unsigned char *buffer, int bytes) {
     #if defined(_WIN32) || defined(_WIN64)
         if (!BCryptGenRandom(NULL, buffer, bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG)) {

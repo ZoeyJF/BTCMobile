@@ -438,17 +438,25 @@ static void ui_draw(void) {
     for (int i = 0; i < g_threads && row < max_rows - 5; i += 2) {
         char lbuf[128];
         char rbuf[128];
-        uint64_t lk = g_thread_keys[i].load();
-        double lspeed = elapsed > 0 ? (double)lk / (double)elapsed : 0.0;
-        char lspd[32];
-        format_commas((uint64_t)lspeed, lspd, sizeof(lspd));
-        snprintf(lbuf, sizeof(lbuf), "[Thread %02d  : %s keys/s ]", i + 1, lspd);
+        if (g_thread_active[i].load()) {
+            uint64_t lk = g_thread_keys[i].load();
+            double lspeed = elapsed > 0 ? (double)lk / (double)elapsed : 0.0;
+            char lspd[32];
+            format_commas((uint64_t)lspeed, lspd, sizeof(lspd));
+            snprintf(lbuf, sizeof(lbuf), "[Thread %02d  : %s keys/s ]", i + 1, lspd);
+        } else {
+            snprintf(lbuf, sizeof(lbuf), "[Thread %02d  : INACTIVE ]", i + 1);
+        }
         if (i + 1 < g_threads) {
-            uint64_t rk = g_thread_keys[i + 1].load();
-            double rspeed = elapsed > 0 ? (double)rk / (double)elapsed : 0.0;
-            char rspd[32];
-            format_commas((uint64_t)rspeed, rspd, sizeof(rspd));
-            snprintf(rbuf, sizeof(rbuf), "[Thread %02d  : %s keys/s ]", i + 2, rspd);
+            if (g_thread_active[i + 1].load()) {
+                uint64_t rk = g_thread_keys[i + 1].load();
+                double rspeed = elapsed > 0 ? (double)rk / (double)elapsed : 0.0;
+                char rspd[32];
+                format_commas((uint64_t)rspeed, rspd, sizeof(rspd));
+                snprintf(rbuf, sizeof(rbuf), "[Thread %02d  : %s keys/s ]", i + 2, rspd);
+            } else {
+                snprintf(rbuf, sizeof(rbuf), "[Thread %02d  : INACTIVE ]", i + 2);
+            }
             cprintf("%-40s %s", lbuf, rbuf); row++;
         } else {
             cprintf("....%s", lbuf); row++;
@@ -1260,10 +1268,10 @@ static void run_pure(thread_arg_t *a) {
         time_t pure_slot_start = time(nullptr);
         Int s, e;
         Int rand_bits;
-        Int min_b((uint32_t)1), max_b((uint32_t)256);
+        Int min_b((uint32_t)128), max_b((uint32_t)256);
         rand_bits.Rand(&min_b, &max_b);
         int rbits = (int)rand_bits.GetInt32();
-        if (rbits < 1) rbits = 1;
+        if (rbits < 128) rbits = 128;
         if (rbits > 256) rbits = 256;
         Int rand_sub;
         Int min_s((uint32_t)0), max_s((uint32_t)99);

@@ -159,6 +159,7 @@ void Int::Set(const char *str) {
 void Int::SetBase10(const char *str) {
 	CLEAR();
 	if (!str) return;
+	while (*str && isspace((unsigned char)*str)) str++;
 	for (int i = 0; str[i]; i++) {
 		if (str[i] >= '0' && str[i] <= '9') {
 			Mult((uint64_t)10);
@@ -386,21 +387,29 @@ char* Int::GetBase2() {
 char* Int::GetBase10() {
 	char *res = (char*)malloc(80);
 	if (!res) return NULL;
-	if (IsZero()) {
+	uint64_t tmp[4];
+	memcpy(tmp, bits, 32);
+	if (tmp[0] == 0 && tmp[1] == 0 && tmp[2] == 0 && tmp[3] == 0) {
 		strcpy(res, "0");
 		return res;
 	}
-	Int tmp(this);
-	char buf[80];
-	int pos = 79;
-	buf[pos--] = 0;
-	Int ten((uint32_t)10);
-	Int rem;
-	while (!tmp.IsZero()) {
-		tmp.Div(&ten, &rem);
-		buf[pos--] = (char)('0' + rem.GetInt32());
+	uint64_t chunks[5] = {0};
+	int num_chunks = 0;
+	const uint64_t E19 = 10000000000000000000ULL;
+	while (tmp[0] != 0 || tmp[1] != 0 || tmp[2] != 0 || tmp[3] != 0) {
+		unsigned __int128 rem = 0;
+		for (int i = 3; i >= 0; i--) {
+			rem = (rem << 64) | tmp[i];
+			tmp[i] = (uint64_t)(rem / E19);
+			rem %= E19;
+		}
+		chunks[num_chunks++] = (uint64_t)rem;
 	}
-	strcpy(res, buf + pos + 1);
+	int pos = 0;
+	pos += sprintf(res + pos, "%llu", (unsigned long long)chunks[num_chunks - 1]);
+	for (int i = num_chunks - 2; i >= 0; i--) {
+		pos += sprintf(res + pos, "%019llu", (unsigned long long)chunks[i]);
+	}
 	return res;
 }
 char* Int::GetBase16() {

@@ -2,8 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <random>
-#include <gmp.h>
-
 #if defined(_WIN32) || defined(_WIN64)
     #include <Windows.h>
     #include <bcrypt.h>
@@ -17,70 +15,8 @@
         #define USE_GETRANDOM
     #endif
 #endif
-
 #include "Int.h"
-
-struct ThreadRandState {
-    gmp_randstate_t state;
-    bool inited;
-    ThreadRandState() : inited(false) {}
-    ~ThreadRandState() {
-        if (inited) {
-            gmp_randclear(state);
-            inited = false;
-        }
-    }
-    gmp_randstate_t& get() {
-        if (!inited) {
-            gmp_randinit_mt(state);
-            mpz_t mpz_seed;
-            mpz_init(mpz_seed);
-            unsigned char seed[64];
-            int bytes_read = random_bytes(seed, 64);
-            if (bytes_read != 64) {
-                std::random_device rd;
-                for (int i = 0; i < 64; i++) {
-                    seed[i] = (unsigned char)(rd() & 0xFF);
-                }
-            }
-            mpz_import(mpz_seed, 64, 1, sizeof(unsigned char), 0, 0, seed);
-            gmp_randseed(state, mpz_seed);
-            mpz_clear(mpz_seed);
-            memset(seed, 0, sizeof(seed));
-            inited = true;
-        }
-        return state;
-    }
-};
-
-static thread_local ThreadRandState tl_rand;
-
-void int_randominit() {
-    tl_rand.get();
-}
-
-void Int::Rand(int nbit) {
-    mpz_urandomb(num, tl_rand.get(), nbit);
-    mpz_setbit(num, nbit - 1);
-}
-
-void Int::Rand(Int *min, Int *max) {
-    if (min->IsEqual(max) || min->IsGreater(max)) {
-        this->Set(min);
-        return;
-    }
-    Int diff(max);
-    diff.Sub(min);
-    int bits = diff.GetBitLength();
-    if (bits <= 0) bits = 1;
-    Int candidate;
-    do {
-        mpz_urandomb(candidate.num, tl_rand.get(), bits);
-    } while (candidate.IsGreater(&diff));
-    this->Set(&candidate);
-    this->Add(min);
-}
-
+#include "Random.h"
 int random_bytes(unsigned char *buffer, int bytes) {
     #if defined(_WIN32) || defined(_WIN64)
         if (!BCryptGenRandom(NULL, buffer, bytes, BCRYPT_USE_SYSTEM_PREFERRED_RNG)) {
@@ -100,4 +36,47 @@ int random_bytes(unsigned char *buffer, int bytes) {
     #else
         #error "Unsupported platform"
     #endif
+}
+void int_randominit() {
+}
+void Int::Rand(int nbit) {
+    CLEAR();
+    if (nbit <= 0) return;
+    if (nbit > 256) nbit = 256;
+    int words = (nbit + 63) / 64;
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    for (int i = 0; i < words; i++) {
+        bits[i] = rng();
+    }
+    uint32_t rem = nbit % 64;
+    if (rem > 0 && words - 1 < 4) {
+        bits[words - 1] &= (1ULL << rem) - 1ULL;
+    }
+    SetBit(nbit - 1);
+}
+void Int::Rand(Int *min, Int *max) {
+    if (!min || !max || min->IsEqual(max) || min->IsGreater(max)) {
+        if (min) Set(min);
+        else CLEAR();
+        return;
+    }
+    Int diff(max);
+    diff.Sub(min);
+    int bit_len = diff.GetBitLength();
+    if (bit_len <= 0) bit_len = 1;
+    Int candidate;
+    static thread_local std::mt19937_64 rng(std::random_device{}());
+    do {
+        candidate.CLEAR();
+        int words = (bit_len + 63) / 64;
+        for (int i = 0; i < words; i++) {
+            candidate.bits[i] = rng();
+        }
+        uint32_t rem = bit_len % 64;
+        if (rem > 0 && words - 1 < 4) {
+            candidate.bits[words - 1] &= (1ULL << rem) - 1ULL;
+        }
+    } while (candidate.IsGreater(&diff));
+    Set(&candidate);
+    Add(min);
 }

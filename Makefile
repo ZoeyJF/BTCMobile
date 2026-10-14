@@ -28,9 +28,9 @@ CREATE_OBJ = $(OBJDIR)/CREATE-BIX.o
 BTC_OBJ    = $(OBJDIR)/BTC.o
 all: CREATE-BIX BTC
 CREATE-BIX: $(CREATE_OBJ) $(LIB_OBJ)
-> $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o CREATE-BIX $(CREATE_OBJ) $(LIB_OBJ) -lgmp
+> $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o CREATE-BIX $(CREATE_OBJ) $(LIB_OBJ)
 BTC: $(BTC_OBJ) $(LIB_OBJ)
-> $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o BTC $(BTC_OBJ) $(LIB_OBJ) -lgmp
+> $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o BTC $(BTC_OBJ) $(LIB_OBJ)
 $(OBJDIR)/%.o: Biblioteca/%.cpp
 > @mkdir -p $(OBJDIR)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) $(WARN) -c -o $@ $<

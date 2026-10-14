@@ -1,12 +1,12 @@
 #ifndef BIGINTH
 #define BIGINTH
-#include "Random.h"
-#include<stdlib.h>
-#include<stdint.h>
-#include<gmp.h>
+#include <cstdlib>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 class Int {
 public:
-	mpz_t num;
+	uint64_t bits[4];
     Int();
     Int(const char*);
     Int(const int32_t);
@@ -61,6 +61,7 @@ public:
 	void SetBit(uint32_t n);
 	void ClearBit(uint32_t n);
 	void ShiftL(uint32_t n);
+	void ShiftR(uint32_t n);
 	void Mod(Int *a);
 	void ModInv();
 	void ModAdd(Int *a);

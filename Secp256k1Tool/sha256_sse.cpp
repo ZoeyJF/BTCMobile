@@ -1,6 +1,9 @@
 
 
 #include "sha256.h"
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__)
+#pragma GCC target("ssse3")
+#endif
 #include <immintrin.h>
 #include <string.h>
 #include <stdint.h>

@@ -1,19 +1,4 @@
-/*
- * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include "ripemd160.h"
 #include <stdint.h>
@@ -23,10 +8,10 @@
 #include <string.h>
 #include <string>
 
-/// Internal RIPEMD-160 implementation.
+
 namespace _ripemd160 {
 
-/** Initialize RIPEMD-160 state. */
+
 void inline Initialize(uint32_t* s)
 {
     s[0] = 0x67452301ul;
@@ -66,7 +51,7 @@ inline uint32_t _rotl(uint32_t x, uint8_t r) {
 #define R42(a,b,c,d,e,x,r) Round(a, b, c, d, e, f2(b, c, d), x, 0x7A6D76E9ul, r)
 #define R52(a,b,c,d,e,x,r) Round(a, b, c, d, e, f1(b, c, d), x, 0, r)
 
-/** Perform a RIPEMD-160 transformation, processing a 64-byte chunk. */
+
 void Transform(uint32_t* s, const unsigned char* chunk)
 {
     uint32_t a1 = s[0], b1 = s[1], c1 = s[2], d1 = s[3], e1 = s[4];
@@ -247,7 +232,7 @@ void Transform(uint32_t* s, const unsigned char* chunk)
     s[4] = t + b1 + c2;
 }
 
-} // namespace ripemd160
+}
 
 CRIPEMD160::CRIPEMD160() : bytes(0)
 {
@@ -259,7 +244,7 @@ void CRIPEMD160::Write(const unsigned char* data, size_t len)
     const unsigned char* end = data + len;
     size_t bufsize = bytes % 64;
     if (bufsize && bufsize + len >= 64) {
-        // Fill the buffer, and process it.
+
         memcpy(buf + bufsize, data, 64 - bufsize);
         bytes += 64 - bufsize;
         data += 64 - bufsize;
@@ -267,13 +252,13 @@ void CRIPEMD160::Write(const unsigned char* data, size_t len)
         bufsize = 0;
     }
     while (end >= data + 64) {
-        // Process full chunks directly from the source.
+
         _ripemd160::Transform(s, data);
         bytes += 64;
         data += 64;
     }
     if (end > data) {
-        // Fill the buffer with what remains.
+
         memcpy(buf + bufsize, data, end - data);
         bytes += end - data;
     }

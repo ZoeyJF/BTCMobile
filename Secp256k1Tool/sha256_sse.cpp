@@ -1,19 +1,4 @@
-/*
- * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include "sha256.h"
 #include <immintrin.h>
@@ -39,19 +24,19 @@ namespace _sha256sse
       0x5be0cd19,0x5be0cd19,0x5be0cd19,0x5be0cd19
   };
 
-//#define Maj(x,y,z) ((x&y)^(x&z)^(y&z))
-//#define Ch(x,y,z)  ((x&y)^(~x&z))
 
-// The following functions are equivalent to the above
-//#define Maj(x,y,z) ((x & y) | (z & (x | y)))
-//#define Ch(x,y,z) (z ^ (x & (y ^ z)))
+
+
+
+
+
 
 #define Maj(b,c,d) _mm_or_si128(_mm_and_si128(b, c), _mm_and_si128(d, _mm_or_si128(b, c)) )
 #define Ch(b,c,d)  _mm_xor_si128(_mm_and_si128(b, c) , _mm_andnot_si128(b , d) )
 #define ROR(x,n)   _mm_or_si128( _mm_srli_epi32(x, n) , _mm_slli_epi32(x, 32 - n) )
 #define SHR(x,n)   _mm_srli_epi32(x, n)
 
-  /* SHA256 Functions */
+
 #define	S0(x) (_mm_xor_si128(ROR((x), 2) , _mm_xor_si128(ROR((x), 13), ROR((x), 22))))
 #define	S1(x) (_mm_xor_si128(ROR((x), 6) , _mm_xor_si128(ROR((x), 11), ROR((x), 25))))
 #define	s0(x) (_mm_xor_si128(ROR((x), 7) , _mm_xor_si128(ROR((x), 18), SHR((x), 3))))
@@ -86,12 +71,12 @@ namespace _sha256sse
   w14 = add4(s1(w12), w7, s0(w15), w14); \
   w15 = add4(s1(w13), w8, s0(w0), w15);
 
-  // Initialise state
+
   void Initialize(__m128i *s) {
     memcpy(s, _init, sizeof(_init));
   }
 
-  // Perform 4 SHA in parallel using SSE2
+
   void Transform(__m128i *s, uint32_t *b0, uint32_t *b1, uint32_t *b2, uint32_t *b3)
   {
     __m128i a,b,c,d,e,f,g,h;
@@ -210,7 +195,7 @@ namespace _sha256sse
 
   }
 
-  // Perform 4 SHA(SHA(bi))[0] in parallel using SSE2
+
   void Transform2(__m128i *s, uint32_t *b0, uint32_t *b1, uint32_t *b2, uint32_t *b3) {
     __m128i a, b, c, d, e, f, g, h;
     __m128i w0, w1, w2, w3, w4, w5, w6, w7;
@@ -421,7 +406,7 @@ namespace _sha256sse
 
   }
 
-} // end namespace
+}
 
 void sha256sse_1B(
   uint32_t *i0,
@@ -438,19 +423,19 @@ void sha256sse_1B(
   _sha256sse::Initialize(s);
   _sha256sse::Transform(s,i0,i1,i2,i3);
 
-  // Unpack
-  __m128i mask = _mm_set_epi8(12, 13, 14, 15, /**/ 4, 5, 6, 7,  /**/ 8, 9, 10, 11,  /**/ 0, 1, 2, 3 );
 
-  __m128i u0 = _mm_unpacklo_epi32(s[0], s[1]);   // S2_1 S2_0 S3_1 S3_0
-  __m128i u1 = _mm_unpackhi_epi32(s[0], s[1]);   // S0_1 S0_0 S1_1 S1_0
+  __m128i mask = _mm_set_epi8(12, 13, 14, 15,  4, 5, 6, 7,   8, 9, 10, 11,   0, 1, 2, 3 );
 
-  __m128i u2 = _mm_unpacklo_epi32(s[2], s[3]);   // S2_3 S2_2 S3_3 S3_2
-  __m128i u3 = _mm_unpackhi_epi32(s[2], s[3]);   // S0_3 S0_2 S1_3 S1_2
+  __m128i u0 = _mm_unpacklo_epi32(s[0], s[1]);
+  __m128i u1 = _mm_unpackhi_epi32(s[0], s[1]);
 
-  __m128i _d3 = _mm_unpacklo_epi32(u0, u2);      // S3_3 S3_1 S3_2 S3_0
-  __m128i _d2 = _mm_unpackhi_epi32(u0, u2);      // S2_3 S2_1 S2_2 S2_0
-  __m128i _d1 = _mm_unpacklo_epi32(u1, u3);      // S1_3 S1_1 S1_2 S1_0
-  __m128i _d0 = _mm_unpackhi_epi32(u1, u3);      // S0_3 S0_1 S0_2 S0_0
+  __m128i u2 = _mm_unpacklo_epi32(s[2], s[3]);
+  __m128i u3 = _mm_unpackhi_epi32(s[2], s[3]);
+
+  __m128i _d3 = _mm_unpacklo_epi32(u0, u2);
+  __m128i _d2 = _mm_unpackhi_epi32(u0, u2);
+  __m128i _d1 = _mm_unpacklo_epi32(u1, u3);
+  __m128i _d0 = _mm_unpackhi_epi32(u1, u3);
 
   _d0 = _mm_shuffle_epi8(_d0, mask);
   _d1 = _mm_shuffle_epi8(_d1, mask);
@@ -462,7 +447,7 @@ void sha256sse_1B(
   _mm_store_si128((__m128i *)d2, _d2);
   _mm_store_si128((__m128i *)d3, _d3);
 
-  // --------------------
+
 
   u0 = _mm_unpacklo_epi32(s[4], s[5]);
   u1 = _mm_unpackhi_epi32(s[4], s[5]);
@@ -504,19 +489,19 @@ void sha256sse_2B(
   _sha256sse::Transform(s, i0, i1, i2, i3);
   _sha256sse::Transform(s, i0 + 16, i1 + 16, i2 + 16, i3 + 16);
 
-  // Unpack
-  __m128i mask = _mm_set_epi8(12, 13, 14, 15, /**/ 4, 5, 6, 7,  /**/ 8, 9, 10, 11,  /**/ 0, 1, 2, 3);
 
-  __m128i u0 = _mm_unpacklo_epi32(s[0], s[1]);   // S2_1 S2_0 S3_1 S3_0
-  __m128i u1 = _mm_unpackhi_epi32(s[0], s[1]);   // S0_1 S0_0 S1_1 S1_0
+  __m128i mask = _mm_set_epi8(12, 13, 14, 15,  4, 5, 6, 7,   8, 9, 10, 11,   0, 1, 2, 3);
 
-  __m128i u2 = _mm_unpacklo_epi32(s[2], s[3]);   // S2_3 S2_2 S3_3 S3_2
-  __m128i u3 = _mm_unpackhi_epi32(s[2], s[3]);   // S0_3 S0_2 S1_3 S1_2
+  __m128i u0 = _mm_unpacklo_epi32(s[0], s[1]);
+  __m128i u1 = _mm_unpackhi_epi32(s[0], s[1]);
 
-  __m128i _d3 = _mm_unpacklo_epi32(u0, u2);      // S3_3 S3_1 S3_2 S3_0
-  __m128i _d2 = _mm_unpackhi_epi32(u0, u2);      // S2_3 S2_1 S2_2 S2_0
-  __m128i _d1 = _mm_unpacklo_epi32(u1, u3);      // S1_3 S1_1 S1_2 S1_0
-  __m128i _d0 = _mm_unpackhi_epi32(u1, u3);      // S0_3 S0_1 S0_2 S0_0
+  __m128i u2 = _mm_unpacklo_epi32(s[2], s[3]);
+  __m128i u3 = _mm_unpackhi_epi32(s[2], s[3]);
+
+  __m128i _d3 = _mm_unpacklo_epi32(u0, u2);
+  __m128i _d2 = _mm_unpackhi_epi32(u0, u2);
+  __m128i _d1 = _mm_unpacklo_epi32(u1, u3);
+  __m128i _d0 = _mm_unpackhi_epi32(u1, u3);
 
   _d0 = _mm_shuffle_epi8(_d0, mask);
   _d1 = _mm_shuffle_epi8(_d1, mask);
@@ -528,7 +513,7 @@ void sha256sse_2B(
   _mm_store_si128((__m128i *)d2, _d2);
   _mm_store_si128((__m128i *)d3, _d3);
 
-  // --------------------
+
 
   u0 = _mm_unpacklo_epi32(s[4], s[5]);
   u1 = _mm_unpackhi_epi32(s[4], s[5]);

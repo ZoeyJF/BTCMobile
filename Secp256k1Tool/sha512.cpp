@@ -1,21 +1,8 @@
-/*
- * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include <string.h>
+#include <cstdint>
+#include <cstdlib>
 #include "sha512.h"
 
 #define BSWAP
@@ -24,7 +11,7 @@
 #define MIN(x,y) (x<y)?x:y;
 #define MAX(x,y) (x>y)?x:y;
 
-/// Internal SHA-512 implementation.
+
 namespace _sha512 {
 
   static const uint64_t K[80] = {
@@ -192,7 +179,7 @@ void CSHA512::Write(const unsigned char* data, size_t len) {
 
     if (buffSize > 0) {
 
-      // Fill internal buffer up and transform
+
       size_t fill = MIN(len,128-buffSize);
       memcpy(buf+buffSize,data, fill);
       len -= fill;
@@ -204,7 +191,7 @@ void CSHA512::Write(const unsigned char* data, size_t len) {
 
     }
 
-    // Internal buffer is empty
+
     while (len >= 128) {
       _sha512::Transform(s, data);
       count++;
@@ -212,19 +199,19 @@ void CSHA512::Write(const unsigned char* data, size_t len) {
       len -= 128;
     }
 
-    // save rest for next time
+
     memcpy(buf,data,len);
     buffSize = len;
 
 }
 
-// Write 128 bytes aligned (buffsize must be 0)
+
 void CSHA512::WriteDirect128(const unsigned char* data) {
   _sha512::Transform(s, data);
   count++;
 }
 
-// Write 64 bytes aligned (buffsize must be 0)
+
 void CSHA512::WriteDirect64(const unsigned char* data) {
   memcpy(buf, data, 64);
   buffSize = 64;
@@ -237,7 +224,7 @@ void CSHA512::Finalize(unsigned char hash[64]) {
 
     rest = buffSize;
 
-    // End code
+
     buf[buffSize++] = 0x80;
 
     if (buffSize > 112) {
@@ -247,7 +234,7 @@ void CSHA512::Finalize(unsigned char hash[64]) {
     }
     memset(buf+buffSize,0,112-buffSize);
 
-    // Write length (128bit big-endian)
+
     WRITEBE64(buf + 112, count >> 54);
     WRITEBE64(buf + 120, ((count << 7) | rest) << 3);
     _sha512::Transform(s, buf);
@@ -258,7 +245,7 @@ void CSHA512::Finalize(unsigned char hash[64]) {
 }
 
 
-/* padding */
+
 #define IPAD	  0x36
 #define IPADLL	0x3636363636363636LL
 #define OPAD	  0x5c
@@ -270,7 +257,7 @@ void hmac_sha512_init(CSHA512 &ctx, const uint8_t key[SHA512_BLOCK_SIZE]) {
   uint64_t *keyPtr = (uint64_t *)key;
   int i;
 
-  // Inner padding
+
   for (i = 0; i < SHA512_BLOCK_SIZE/8; i++)
     pad[i] = keyPtr[i] ^ IPADLL;
 
@@ -287,14 +274,14 @@ void hmac_sha512_done(CSHA512 &ctx, const uint8_t key[SHA512_BLOCK_SIZE], uint8_
   uint8_t ihash[SHA512_HASH_LENGTH];
   int i;
 
-  // Finalize inner hash
+
   ctx.Finalize(ihash);
 
-  // Construct outer padding
+
   for (i = 0; i < SHA512_BLOCK_SIZE/8; i++)
     pad[i] = keyPtr[i] ^ OPADLL;
 
-  // Final hash
+
   CSHA512 c;
   c.WriteDirect128((unsigned char *)pad);
   c.WriteDirect64(ihash);
@@ -364,7 +351,7 @@ void hmac_sha512(unsigned char *key, int key_length, unsigned char *message, int
   uint8_t hash[SHA512_HASH_LENGTH];
   int i;
 
-  // TODO Handle key larger than 128
+
 
   for (i = 0; i < key_length && i < SHA512_BLOCK_SIZE; i++) {
     ipad[i] = key[i] ^ IPAD;

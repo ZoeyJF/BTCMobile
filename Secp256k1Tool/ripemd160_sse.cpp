@@ -1,25 +1,10 @@
-/*
- * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include "ripemd160.h"
 #include <string.h>
 #include <immintrin.h>
 
-// Internal SSE RIPEMD-160 implementation.
+
 namespace ripemd160sse {
 
 #ifdef WIN64
@@ -34,11 +19,11 @@ namespace ripemd160sse {
       0xC3D2E1F0ul,0xC3D2E1F0ul,0xC3D2E1F0ul,0xC3D2E1F0ul
   };
 
-//#define f1(x, y, z) (x ^ y ^ z)
-//#define f2(x, y, z) ((x & y) | (~x & z))
-//#define f3(x, y, z) ((x | ~y) ^ z)
-//#define f4(x, y, z) ((x & z) | (~z & y))
-//#define f5(x, y, z) (x ^ (y | ~z))
+
+
+
+
+
 
 #define ROL(x,n) _mm_or_si128( _mm_slli_epi32(x, n) , _mm_srli_epi32(x, 32 - n) )
 
@@ -83,12 +68,12 @@ namespace ripemd160sse {
 
 #define LOADW(i) _mm_set_epi32(*((uint32_t *)blk[0]+i),*((uint32_t *)blk[1]+i),*((uint32_t *)blk[2]+i),*((uint32_t *)blk[3]+i))
 
-  // Initialize RIPEMD-160 state
+
   void Initialize(__m128i *s) {
     memcpy(s, _init, sizeof(_init));
   }
 
-  // Perform 4 RIPE in parallel using SSE2
+
   void Transform(__m128i *s, uint8_t *blk[4]) {
 
     __m128i a1 = _mm_load_si128(s + 0);
@@ -295,7 +280,7 @@ namespace ripemd160sse {
     s[4] = add3(t,b1,c2);
   }
 
-} // namespace ripemd160sse
+}
 
 #ifdef WIN64
 

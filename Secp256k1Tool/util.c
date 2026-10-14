@@ -1,6 +1,6 @@
-#include <cstring>
-#include <cstdio>
-#include <cstdlib>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "util.h"
 
@@ -91,9 +91,7 @@ void freetokenizer(Tokenizer *t)	{
 }
 
 
-/*
-	Aux function to get the hexvalues of the data
-*/
+
 char *tohex(char *ptr,int length){
   char *buffer;
   int offset = 0;

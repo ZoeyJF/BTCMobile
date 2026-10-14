@@ -1,19 +1,4 @@
-/*
- * This file is part of the VanitySearch distribution (https://github.com/JeanLucPons/VanitySearch).
- * Copyright (c) 2019 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include <string.h>
 #include <stdio.h>
@@ -25,7 +10,7 @@
 
 #define BSWAP
 
-/// Internal SHA-256 implementation.
+
 namespace _sha256
 {
 
@@ -47,13 +32,13 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
 #define s1(x) (ROR(x,17) ^ ROR(x,19) ^ (x >> 10))
 
 #define Maj(x,y,z) ((x&y)^(x&z)^(y&z))
-//#define Ch(x,y,z)  ((x&y)^(~x&z))
 
-// The following functions are equivalent to the above
-//#define Maj(x,y,z) ((x & y) | (z & (x | y)))
+
+
+
 #define Ch(x,y,z) (z ^ (x & (y ^ z)))
 
-// SHA-256 round
+
 #define Round(a, b, c, d, e, f, g, h, k, w) \
     t1 = h + S1(e) + Ch(e,f,g) + k + (w); \
     t2 = S0(a) + Maj(a,b,c); \
@@ -70,7 +55,7 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
 #define READBE32(ptr) *(uint32_t *)(ptr)
 #endif
 
-  // Initialise state
+
   void Initialize(uint32_t *s) {
 
     s[0] = 0x6a09e667ul;
@@ -85,7 +70,7 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
   }
 
 
-  // Perform SHA-256 transformations, process 64-byte chunks
+
   void Transform(uint32_t* s, const unsigned char* chunk)
   {
     uint32_t t1;
@@ -172,7 +157,7 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
 
   }
 
-  // Compute SHA256(SHA256(chunk))[0]
+
   void Transform2(uint32_t* s, const unsigned char* chunk) {
 
     uint32_t t1;
@@ -354,10 +339,10 @@ inline uint32_t _rotr(uint32_t x, uint8_t r) {
 
   }
 
-} // namespace sha256
+}
 
 
-////// SHA-256
+
 
 class CSHA256
 {
@@ -392,7 +377,7 @@ void CSHA256::Write(const unsigned char* data, size_t len)
   const unsigned char* end = data + len;
   size_t bufsize = bytes % 64;
   if (bufsize && bufsize + len >= 64) {
-    // Fill the buffer, and process it.
+
     memcpy(buf + bufsize, data, 64 - bufsize);
     bytes += 64 - bufsize;
     data += 64 - bufsize;
@@ -400,13 +385,13 @@ void CSHA256::Write(const unsigned char* data, size_t len)
     bufsize = 0;
   }
   while (end >= data + 64) {
-    // Process full chunks directly from the source.
+
     _sha256::Transform(s, data);
     bytes += 64;
     data += 64;
   }
   if (end > data) {
-    // Fill the buffer with what remains.
+
     memcpy(buf + bufsize, data, end - data);
     bytes += end - data;
   }
@@ -512,15 +497,15 @@ bool sha256_file(const char* file_name, uint8_t* checksum) {
         return false;
     }
     CSHA256 sha;
-    uint8_t buffer[8192]; // Buffer to read file contents
+    uint8_t buffer[8192];
     size_t bytes_read;
 
-	// Read file contents and update SHA256 context
+
 	while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0) {
 		sha.Write( buffer, bytes_read);
 	}
 
-	// Finalize SHA256 computation
+
 	sha.Finalize(checksum);
 	fclose(file);
 	return true;

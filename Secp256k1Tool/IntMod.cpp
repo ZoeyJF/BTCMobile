@@ -1,19 +1,4 @@
-/*
- * This file is part of the BSGS distribution (https://github.com/JeanLucPons/BSGS).
- * Copyright (c) 2020 Jean Luc PONS.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, version 3.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+
 
 #include "Int.h"
 #include <emmintrin.h>
@@ -22,19 +7,19 @@
 #define MAX(x,y) (((x)>(y))?(x):(y))
 #define MIN(x,y) (((x)<(y))?(x):(y))
 
-static Int     _P;       // Field characteristic
-static Int     _R;       // Montgomery multiplication R
-static Int     _R2;      // Montgomery multiplication R2
-static Int     _R3;      // Montgomery multiplication R3
-static Int     _R4;      // Montgomery multiplication R4
-static int32_t  Msize;    // Montgomery mult size
-static uint32_t MM32;     // 32bits lsb negative inverse of P
-static uint64_t MM64;     // 64bits lsb negative inverse of P
+static Int     _P;
+static Int     _R;
+static Int     _R2;
+static Int     _R3;
+static Int     _R4;
+static int32_t  Msize;
+static uint32_t MM32;
+static uint64_t MM64;
 #define MSK62  0x3FFFFFFFFFFFFFFF
 
 extern Int _ONE;
 
-// ------------------------------------------------
+
 
 void Int::ModAdd(Int *a) {
   Int p;
@@ -44,7 +29,7 @@ void Int::ModAdd(Int *a) {
     Set(&p);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModAdd(Int *a, Int *b) {
   Int p;
@@ -54,7 +39,7 @@ void Int::ModAdd(Int *a, Int *b) {
     Set(&p);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModDouble() {
   Int p;
@@ -64,7 +49,7 @@ void Int::ModDouble() {
     Set(&p);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModAdd(uint64_t a) {
   Int p;
@@ -74,7 +59,7 @@ void Int::ModAdd(uint64_t a) {
     Set(&p);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModSub(Int *a) {
   Sub(a);
@@ -82,7 +67,7 @@ void Int::ModSub(Int *a) {
     Add(&_P);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModSub(uint64_t a) {
   Sub(a);
@@ -90,7 +75,7 @@ void Int::ModSub(uint64_t a) {
     Add(&_P);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModSub(Int *a,Int *b) {
   Sub(a,b);
@@ -98,27 +83,27 @@ void Int::ModSub(Int *a,Int *b) {
     Add(&_P);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModNeg() {
   Neg();
   Add(&_P);
 }
 
-// ------------------------------------------------
+
 
 void Int::ModInv() {
 
-  // Compute modular inverse of this mop _P
-  // 0 < this < P  , P must be odd
-  // Return 0 if no inverse
 
-  // 256bit 
-  //#define XCD 1               // ~62  kOps/s
-  //#define BXCD 1              // ~167 kOps/s
-  //#define MONTGOMERY 1        // ~200 kOps/s
-  //#define PENK 1              // ~179 kOps/s
-  #define DRS62 1             // ~365 kOps/s
+
+
+
+
+
+
+
+
+  #define DRS62 1
 
   Int u(&_P);
   Int v(this);
@@ -129,17 +114,17 @@ void Int::ModInv() {
 
   Int q, t1, t2, w;
 
-  // Classic XCD 
 
-  bool bIterations = true;  // Remember odd/even iterations
+
+  bool bIterations = true;
   while (!u.IsZero()) {
-    // Step X3. Divide and "Subtract"
-    q.Set(&v);
-    q.Div(&u, &t2);   // q = u / v, t2 = u % v
-    w.Mult(&q, &r);   // w = q * r
-    t1.Add(&s, &w);   // t1 = s + w
 
-                      // Swap u,v & r,s
+    q.Set(&v);
+    q.Div(&u, &t2);
+    w.Mult(&q, &r);
+    t1.Add(&s, &w);
+
+
     s.Set(&r);
     r.Set(&t1);
     v.Set(&u);
@@ -155,9 +140,9 @@ void Int::ModInv() {
 
   if (!bIterations) {
     Set(&_P);
-    Sub(&s);  /* inv = n - u1 */
+    Sub(&s);
   } else {
-    Set(&s);  /* inv = u1     */
+    Set(&s);
   }
 
 #endif
@@ -166,7 +151,7 @@ void Int::ModInv() {
 
 #define SWAP_SUB(x,y) x.Sub(&y);y.Add(&x)
 
-  // Binary XCD loop
+
 
   while (!u.IsZero()) {
 
@@ -186,9 +171,9 @@ void Int::ModInv() {
 
   }
 
-  // v ends with -1 ou 1
+
   if (!v.IsOne()) {
-    // v = -1
+
     s.Neg();
     s.Add(&_P);
     v.Neg();
@@ -218,7 +203,7 @@ void Int::ModInv() {
   int Q = _P.bits[0] & 3;
   shiftL(1,n2.bits64);
 
-  // Penk's Algorithm (With DRS2 optimisation)
+
 
   while (v.IsEven()) {
 
@@ -333,7 +318,7 @@ void Int::ModInv() {
   Int x;
   int k = 0;
 
-  // Montgomery method
+
   while (v.IsStrictPositive()) {
     if (u.IsEven()) {
       shiftR(1, u.bits64);
@@ -379,7 +364,7 @@ void Int::ModInv() {
 
 #ifdef DRS62
 
-  // Delayed right shift 62bits
+
 
   #define SWAP_ADD(x,y) x+=y;y-=x;
   #define SWAP_SUB(x,y) x-=y;y+=x;
@@ -403,10 +388,10 @@ void Int::ModInv() {
 
   while (!u.IsZero()) {
 
-    // u' = (uu*u + uv*v) >> bitCount
-    // v' = (vu*u + vv*v) >> bitCount
-    // Do not maintain a matrix for r and s, the number of 
-    // 'added P' can be easily calculated
+
+
+
+
     uu = 1; uv = 0;
     vu = 0; vv = 1;
 
@@ -414,8 +399,8 @@ void Int::ModInv() {
     v0 = (int64_t)v.bits64[0];
     bitCount = 0;
 
-    // Slightly optimized Binary XCD loop on native signed integers
-    // Stop at 62 bits to avoid uv matrix overfow and loss of sign bit
+
+
     while (true) {
 
       while (IS_EVEN(u0) && bitCount<62) {
@@ -443,7 +428,7 @@ void Int::ModInv() {
 
     }
 
-    // Now update BigInt variables
+
 
     uu_u.IMult(&u,uu);
     uv_v.IMult(&v,uv);
@@ -457,27 +442,27 @@ void Int::ModInv() {
     vu_r.IMult(&r,vu);
     vv_s.IMult(&s,vv);
 
-    // Compute multiple of P to add to s and r to make them multiple of 2^62
+
     uint64_t r0 = ((uu_r.bits64[0] + uv_s.bits64[0]) * MM64) & MSK62;
     uint64_t s0 = ((vu_r.bits64[0] + vv_s.bits64[0]) * MM64) & MSK62;
     r0_P.Mult(&_P,r0);
     s0_P.Mult(&_P,s0);
 
-    // u = (uu*u + uv*v)
+
     u.Add(&uu_u,&uv_v);
 
-    // v = (vu*u + vv*v)
+
     v.Add(&vu_u,&vv_v);
 
-    // r = (uu*r + uv*s + r0*P)
+
     r.Add(&uu_r,&uv_s);
     r.Add(&r0_P);
 
-    // s = (vu*r + vv*s + s0*P)
+
     s.Add(&vu_r,&vv_s);
     s.Add(&s0_P);
 
-    // Right shift all variables by 62bits
+
     shiftR(62, u.bits64);
 	shiftR(62, v.bits64);
 	shiftR(62, r.bits64);
@@ -485,15 +470,15 @@ void Int::ModInv() {
 
   }
 
-  // v ends with -1 or 1
+
   if (v.IsNegative()) {
-    // V = -1
+
     v.Neg();
     s.Neg();
     s.Add(&_P);
   }
   if (!v.IsOne()) {
-    // No inverse
+
     CLEAR();
     return;
   }
@@ -510,7 +495,7 @@ void Int::ModInv() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModExp(Int *e) {
   Int base(this);
@@ -524,7 +509,7 @@ void Int::ModExp(Int *e) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModMul(Int *a) {
 
@@ -534,7 +519,7 @@ void Int::ModMul(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModSquare(Int *a) {
 
@@ -544,7 +529,7 @@ void Int::ModSquare(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModCube(Int *a) {
 
@@ -556,11 +541,11 @@ void Int::ModCube(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 bool Int::HasSqrt() {
 
-  // Euler's criterion
+
   Int e(&_P);
   Int a(this);
   e.SubOne();
@@ -571,7 +556,7 @@ bool Int::HasSqrt() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModSqrt() {
 
@@ -594,9 +579,9 @@ void Int::ModSqrt() {
 
   } else if ((_P.bits64[0] & 3) == 1) {
 
-    //int nbBit = _P.GetBitLength();
 
-    // Tonelli Shanks
+
+
     uint64_t e=0;
     Int S(&_P);
     S.SubOne();
@@ -605,7 +590,7 @@ void Int::ModSqrt() {
       e++;
     }
 
-    // Search smalest non-qresidue of P
+
     Int q((uint64_t)1);
     do {
       q.AddOne();
@@ -649,7 +634,7 @@ void Int::ModSqrt() {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::ModMul(Int *a, Int *b) {
 
@@ -659,13 +644,13 @@ void Int::ModMul(Int *a, Int *b) {
 
 }
 
-// ------------------------------------------------
+
 
 Int* Int::GetFieldCharacteristic() {
   return &_P;
 }
 
-// ------------------------------------------------
+
 
 Int* Int::GetR() {
   return &_R;
@@ -680,14 +665,14 @@ Int* Int::GetR4() {
   return &_R4;
 }
 
-// ------------------------------------------------
+
 
 void Int::SetupField(Int *n, Int *R, Int *R2, Int *R3, Int *R4) {
 
-  // Size in number of 32bit word
+
   int nSize = n->GetSize();
 
-  // Last digit inversions (Newton's iteration)
+
   {
     int64_t x, t;
     x = t = (int64_t)n->bits64[0];
@@ -701,22 +686,22 @@ void Int::SetupField(Int *n, Int *R, Int *R2, Int *R3, Int *R4) {
   }
   _P.Set(n);
 
-  // Size of Montgomery mult (64bits digit)
+
   Msize = nSize/2;
 
-  // Compute few power of R
-  // R = 2^(64*Msize) mod n
-  Int Ri;
-  Ri.MontgomeryMult(&_ONE, &_ONE); // Ri = R^-1
-  _R.Set(&Ri);                     // R  = R^-1
-  _R2.MontgomeryMult(&Ri, &_ONE);  // R2 = R^-2
-  _R3.MontgomeryMult(&Ri, &Ri);    // R3 = R^-3
-  _R4.MontgomeryMult(&_R3, &_ONE); // R4 = R^-4
 
-  _R.ModInv();                     // R  = R
-  _R2.ModInv();                    // R2 = R^2
-  _R3.ModInv();                    // R3 = R^3
-  _R4.ModInv();                    // R4 = R^4
+
+  Int Ri;
+  Ri.MontgomeryMult(&_ONE, &_ONE);
+  _R.Set(&Ri);
+  _R2.MontgomeryMult(&Ri, &_ONE);
+  _R3.MontgomeryMult(&Ri, &Ri);
+  _R4.MontgomeryMult(&_R3, &_ONE);
+
+  _R.ModInv();
+  _R2.ModInv();
+  _R3.ModInv();
+  _R4.ModInv();
 
   if (R)
     R->Set(&_R);
@@ -731,7 +716,7 @@ void Int::SetupField(Int *n, Int *R, Int *R2, Int *R3, Int *R4) {
     R4->Set(&_R4);
 
 }
-// ------------------------------------------------
+
 
 uint64_t Int::AddC(Int *a) {
 
@@ -752,7 +737,7 @@ uint64_t Int::AddC(Int *a) {
 
 }
 
-// ------------------------------------------------
+
 
 void Int::AddAndShift(Int *a, Int *b, uint64_t cH) {
 
@@ -773,12 +758,12 @@ void Int::AddAndShift(Int *a, Int *b, uint64_t cH) {
 
 }
 
-// ------------------------------------------------
+
 void Int::MontgomeryMult(Int *a) {
 
-  // Compute a*b*R^-1 (mod n),  R=2^k (mod n), k = Msize*64
-  // a and b must be lower than n
-  // See SetupField()
+
+
+
 
   Int t;
   Int pr;
@@ -786,7 +771,7 @@ void Int::MontgomeryMult(Int *a) {
   uint64_t ML;
   uint64_t c;
 
-  // i = 0
+
   imm_umul(a->bits64, bits64[0], pr.bits64);
   ML = pr.bits64[0] * MM64;
   imm_umul(_P.bits64, ML, p.bits64);
@@ -814,16 +799,16 @@ void Int::MontgomeryMult(Int *a) {
 
 void Int::MontgomeryMult(Int *a, Int *b) {
 
-  // Compute a*b*R^-1 (mod n),  R=2^k (mod n), k = Msize*64
-  // a and b must be lower than n
-  // See SetupField()
+
+
+
 
   Int pr;
   Int p;
   uint64_t ML;
   uint64_t c;
 
-  // i = 0
+
   imm_umul(a->bits64, b->bits64[0], pr.bits64);
   ML = pr.bits64[0] * MM64;
   imm_umul(_P.bits64, ML, p.bits64);
@@ -848,7 +833,7 @@ void Int::MontgomeryMult(Int *a, Int *b) {
 }
 
 
-// SecpK1 specific section -----------------------------------------------------------------------------
+
 
 void Int::ModMulK1(Int *a, Int *b) {
 
@@ -871,7 +856,7 @@ void Int::ModMulK1(Int *a, Int *b) {
   r512[6] = 0;
   r512[7] = 0;
 
-  // 256*256 multiplier
+
   imm_umul(a->bits64, b->bits64[0], r512);
   imm_umul(a->bits64, b->bits64[1], t);
   c = _addcarry_u64(0, r512[1], t[0], r512 + 1);
@@ -892,23 +877,23 @@ void Int::ModMulK1(Int *a, Int *b) {
   c = _addcarry_u64(c, r512[6], t[3], r512 + 6);
   c = _addcarry_u64(c, r512[7], t[4], r512 + 7);
 
-  // Reduce from 512 to 320 
+
   imm_umul(r512 + 4, 0x1000003D1ULL, t);
   c = _addcarry_u64(0, r512[0], t[0], r512 + 0);
   c = _addcarry_u64(c, r512[1], t[1], r512 + 1);
   c = _addcarry_u64(c, r512[2], t[2], r512 + 2);
   c = _addcarry_u64(c, r512[3], t[3], r512 + 3);
 
-  // Reduce from 320 to 256 
-  // No overflow possible here t[4]+c<=0x1000003D1ULL
-  al = _umul128(t[4] + c, 0x1000003D1ULL, &ah); 
+
+
+  al = _umul128(t[4] + c, 0x1000003D1ULL, &ah);
   c = _addcarry_u64(0, r512[0], al, bits64 + 0);
   c = _addcarry_u64(c, r512[1], ah, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0ULL, bits64 + 2);
   c = _addcarry_u64(c, r512[3], 0ULL, bits64 + 3);
 
-  // Probability of carry here or that this>P is very very unlikely
-  bits64[4] = 0; 
+
+  bits64[4] = 0;
 
 }
 
@@ -932,7 +917,7 @@ void Int::ModMulK1(Int *a) {
   r512[6] = 0;
   r512[7] = 0;
 
-  // 256*256 multiplier
+
   imm_umul(a->bits64, bits64[0], r512);
   imm_umul(a->bits64, bits64[1], t);
   c = _addcarry_u64(0, r512[1], t[0], r512 + 1);
@@ -953,21 +938,21 @@ void Int::ModMulK1(Int *a) {
   c = _addcarry_u64(c, r512[6], t[3], r512 + 6);
   c = _addcarry_u64(c, r512[7], t[4], r512 + 7);
 
-  // Reduce from 512 to 320 
+
   imm_umul(r512 + 4, 0x1000003D1ULL, t);
   c = _addcarry_u64(0, r512[0], t[0], r512 + 0);
   c = _addcarry_u64(c, r512[1], t[1], r512 + 1);
   c = _addcarry_u64(c, r512[2], t[2], r512 + 2);
   c = _addcarry_u64(c, r512[3], t[3], r512 + 3);
 
-  // Reduce from 320 to 256 
-  // No overflow possible here t[4]+c<=0x1000003D1ULL
+
+
   al = _umul128(t[4] + c, 0x1000003D1ULL, &ah);
   c = _addcarry_u64(0, r512[0], al, bits64 + 0);
   c = _addcarry_u64(c, r512[1], ah, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0, bits64 + 2);
   c = _addcarry_u64(c, r512[3], 0, bits64 + 3);
-  // Probability of carry here or that this>P is very very unlikely
+
   bits64[4] = 0;
 
 }
@@ -992,10 +977,10 @@ void Int::ModSquareK1(Int *a) {
   uint64_t t[5];
 
 
-  //k=0
+
   r512[0] = _umul128(a->bits64[0], a->bits64[0], &t[1]);
 
-  //k=1
+
   t[3] = _umul128(a->bits64[0], a->bits64[1], &t[4]);
   c = _addcarry_u64(0, t[3], t[3], &t[3]);
   c = _addcarry_u64(c, t[4], t[4], &t[4]);
@@ -1005,7 +990,7 @@ void Int::ModSquareK1(Int *a) {
   c = _addcarry_u64(c, t1,  0, &t1);
   r512[1] = t[3];
 
-  //k=2
+
   t[0] = _umul128(a->bits64[0], a->bits64[2], &t[1]);
   c = _addcarry_u64(0, t[0], t[0], &t[0]);
   c = _addcarry_u64(c, t[1], t[1], &t[1]);
@@ -1020,7 +1005,7 @@ void Int::ModSquareK1(Int *a) {
   c = _addcarry_u64(c, t2, 0, &t2);
   r512[2] = t[0];
 
-  //k=3
+
   t[3] = _umul128(a->bits64[0], a->bits64[3], &t[4]);
   u10 = _umul128(a->bits64[1], a->bits64[2], &u11);
 
@@ -1036,7 +1021,7 @@ void Int::ModSquareK1(Int *a) {
   c = _addcarry_u64(c, t1, 0, &t1);
   r512[3] = t[3];
 
-  //k=4
+
   t[0] = _umul128(a->bits64[1], a->bits64[3], &t[1]);
   c = _addcarry_u64(0, t[0], t[0], &t[0]);
   c = _addcarry_u64(c, t[1], t[1], &t[1]);
@@ -1051,7 +1036,7 @@ void Int::ModSquareK1(Int *a) {
   c = _addcarry_u64(c, t2,  0, &t2);
   r512[4] = t[0];
 
-  //k=5
+
   t[3] = _umul128(a->bits64[2], a->bits64[3], &t[4]);
   c = _addcarry_u64(0, t[3], t[3], &t[3]);
   c = _addcarry_u64(c, t[4], t[4], &t[4]);
@@ -1061,38 +1046,38 @@ void Int::ModSquareK1(Int *a) {
   c = _addcarry_u64(c, t1,  0, &t1);
   r512[5] = t[3];
 
-  //k=6
+
   t[0] = _umul128(a->bits64[3], a->bits64[3], &t[1]);
   c = _addcarry_u64(0, t[0], t[4], &t[0]);
   c = _addcarry_u64(c, t[1], t1, &t[1]);
   r512[6] = t[0];
 
-  //k=7
+
   r512[7] = t[1];
 
-  // Reduce from 512 to 320 
-  // Reduce from 512 to 320 
+
+
   imm_umul(r512 + 4, 0x1000003D1ULL, t);
   c = _addcarry_u64(0, r512[0], t[0], r512 + 0);
   c = _addcarry_u64(c, r512[1], t[1], r512 + 1);
   c = _addcarry_u64(c, r512[2], t[2], r512 + 2);
   c = _addcarry_u64(c, r512[3], t[3], r512 + 3);
 
-  // Reduce from 320 to 256 
-  // No overflow possible here t[4]+c<=0x1000003D1ULL
+
+
   u10 = _umul128(t[4] + c, 0x1000003D1ULL, &u11);
   c = _addcarry_u64(0, r512[0], u10, bits64 + 0);
   c = _addcarry_u64(c, r512[1], u11, bits64 + 1);
   c = _addcarry_u64(c, r512[2], 0, bits64 + 2);
   c = _addcarry_u64(c, r512[3], 0, bits64 + 3);
-  // Probability of carry here or that this>P is very very unlikely
+
   bits64[4] = 0;
 
 }
 
-static Int _R2o;                               // R^2 for SecpK1 order modular mult
-static uint64_t MM64o = 0x4B0DFF665588B13FULL; // 64bits lsb negative inverse of SecpK1 order
-static Int *_O;                                // SecpK1 order
+static Int _R2o;
+static uint64_t MM64o = 0x4B0DFF665588B13FULL;
+static Int *_O;
 
 void Int::InitK1(Int *order) {
   _O = order;
@@ -1138,7 +1123,7 @@ void Int::ModMulK1order(Int *a) {
     Set(&t);
 
 
-  // Normalize
+
 
   imm_umul(_R2o.bits64, bits64[0], pr.bits64);
   ML = pr.bits64[0] * MM64o;

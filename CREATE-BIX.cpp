@@ -450,6 +450,12 @@ static int stage_write_idx_sparse(uint8_t *map, uint64_t n) {
     double t0 = now_sec();
     double last_print = t0;
     for (uint64_t i = 0; i < n; i += IDX_SPARSE_STRIDE) {
+        if (i > 0xFFFFFFFFULL) {
+            fprintf(stderr, "\n[CREATE] error: hash offset %llu exceeds 32-bit limit for sparse index; use full index option A\n", (unsigned long long)i);
+            free(iobuf);
+            fclose(fidx);
+            return -1;
+        }
         uint32_t off = (uint32_t)i;
         memcpy(entry, map + i * HASH160_LEN, HASH160_LEN);
         memcpy(entry + HASH160_LEN, &off, 4);

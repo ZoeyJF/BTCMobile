@@ -17,10 +17,10 @@ struct DerivedInfo {
 };
 int derive_all_info(Int &priv, Point &pub, DerivedInfo &out);
 void format_extended_entry(const DerivedInfo &info,
-                           int range_bits,
-                           int subrange_id,
-                           int thread_id,
-                           const char *timestamp_utc,
-                           char *out,
-                           size_t out_size);
+                            int range_bits,
+                            int subrange_id,
+                            int thread_id,
+                            const char *timestamp_utc,
+                            char *out,
+                            size_t out_size);
 #endif

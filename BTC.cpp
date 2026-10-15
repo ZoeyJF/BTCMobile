@@ -54,12 +54,24 @@ static std::atomic<uint64_t> g_derive_count{0};
 static std::atomic<uint64_t> g_xor_queries{0};
 static std::atomic<uint64_t> g_xor_hits{0};
 static std::atomic<uint64_t> g_xor_fp{0};
-static pthread_mutex_t g_hit_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t g_ui_mutex = PTHREAD_MUTEX_INITIALIZER;
 static std::condition_variable g_ui_cv;
 static std::mutex g_monitor_mutex;
+static std::mutex g_hit_queue_mutex;
 static std::set<std::string> g_seen;
 static std::vector<std::string> g_last_hits;
+
+typedef struct {
+    uint8_t hash[HASH160_LEN];
+    Int priv;
+    Point pub;
+    char currency[16];
+    int subrange_id;
+    int thread_id;
+    char ts[32];
+} hit_job_t;
+
+static std::vector<hit_job_t> g_hit_queue;
 static std::atomic<int> g_range_bits{0};
 static int g_mode = 0;
 static int g_subranges = 1;
@@ -242,7 +254,6 @@ static void ui_draw(void) {
     if (elapsed < 0) elapsed = 0;
     uint64_t ck = g_checked.load();
     uint64_t fd = g_found.load();
-    uint64_t dv = g_derive_count.load();
     uint64_t xh = g_xor_hits.load();
     uint64_t xfp = g_xor_fp.load();
     double total_speed = 0.0;
@@ -334,9 +345,7 @@ static void ui_draw(void) {
         cprintf("-------------------------------------"); row++;
         char ckbuf[32];
         format_commas(ck, ckbuf, sizeof(ckbuf));
-        cprintf("Random Positions Checked : %s", ckbuf); row++;
-        cprintf("-------------------------------------"); row++;
-        cprintf("Unique Positions          : %s", ckbuf); row++;
+        cprintf("Positions Checked : %s", ckbuf); row++;
         cprintf("================================================================================"); row++;
         cprintf("--------------------------------------------------------------------------------"); row++;
         cprintf("<x> SUBRANGE STATUS :"); row++;
@@ -429,7 +438,6 @@ static void ui_draw(void) {
             char ckbuf[32];
             format_commas(ck, ckbuf, sizeof(ckbuf));
             cprintf("Positions Checked : %s", ckbuf); row++;
-            cprintf("Unique Positions  : %s", ckbuf); row++;
         }
     }
     if (row < max_rows - 8) { cprintf("================================================================================"); row++; }
@@ -467,22 +475,22 @@ static void ui_draw(void) {
     if (row < max_rows - 2) { cprintf("================================================================================"); row++; }
     char tspd[64];
     format_total_speed(total_speed, tspd, sizeof(tspd));
-    if (row < max_rows - 1) { cprintf("<x> [TOTAL : %s keys/s ]", tspd); row++; }
+    char total_keys_buf[32];
+    format_commas(ck, total_keys_buf, sizeof(total_keys_buf));
+    if (row < max_rows - 1) { cprintf("<x> TOTAL KEYs : %s  [ SPEED : %s keys/s ]", total_keys_buf, tspd); row++; }
     if (row < max_rows) { cprintf("--------------------------------------------------------------------------------"); row++; }
     if (row < max_rows) { cprintf("================================================================================"); row++; }
     double fp_rate = xh > 0 ? (double)xfp / (double)xh : 0.0;
-    char dvbuf[32];
-    format_commas(dv, dvbuf, sizeof(dvbuf));
-    if (row < max_rows) { cprintf("<x> [Derivations : %s]", dvbuf); row++; }
     if (row < max_rows) { cprintf("<x> [Xor-Filter : %.2f]  False Positives", fp_rate); row++; }
     if (row < max_rows) { cprintf("--------------------------------------------------------------------------------"); row++; }
     if (row < max_rows) { cprintf("================================================================================"); row++; }
     if (row < max_rows) { cprintf("<x> FOUND : %llu", (unsigned long long)fd); row++; }
     if (row < max_rows) { cprintf("================================================================================"); row++; }
     std::vector<std::string> local_hits;
-    pthread_mutex_lock(&g_hit_mutex);
-    local_hits = g_last_hits;
-    pthread_mutex_unlock(&g_hit_mutex);
+    {
+        std::lock_guard<std::mutex> lock(g_hit_queue_mutex);
+        local_hits = g_last_hits;
+    }
     size_t shown = local_hits.size() < 5 ? local_hits.size() : 5;
     for (size_t i = 0; i < shown && row < max_rows; i++) {
         const std::string &hit = local_hits[local_hits.size() - 1 - i];
@@ -502,16 +510,6 @@ static void hash_to_hex(const uint8_t *h, char *out) {
         free(tmp);
     } else {
         out[0] = 0;
-    }
-}
-static void priv_to_hex(Int &priv, char *out) {
-    memset(out, '0', 64);
-    out[64] = 0;
-    char *p = priv.GetBase16();
-    if (p) {
-        int len = (int)strlen(p);
-        if (len > 0 && len <= 64) memcpy(out + (64 - len), p, (size_t)len);
-        free(p);
     }
 }
 static void timestamp_utc(char *buf, size_t n) {
@@ -772,48 +770,62 @@ static int bin_search(const uint8_t *h160) {
     if (g_idx_mode == 1) return bin_search_full(h160);
     return bin_search_sparse(h160);
 }
-static void extended_write_found(const char *hash_hex, Int &priv, Point &pub,
-                                 const char *currency, int subrange_id,
-                                 int thread_id, const char *ts) {
+static void process_hit_job(const hit_job_t &job) {
+    char hash_hex[48];
+    hash_to_hex(job.hash, hash_hex);
+
     DerivedInfo dinfo;
-    derive_all_info(priv, pub, dinfo);
+    Int priv_copy(job.priv);
+    Point pub_copy(job.pub);
+    derive_all_info(priv_copy, pub_copy, dinfo);
+
     char entry[2048];
-    format_extended_entry(dinfo, g_range_bits.load(), subrange_id, thread_id, ts, entry, sizeof(entry));
+    format_extended_entry(dinfo, g_range_bits.load(), job.subrange_id, job.thread_id, job.ts, entry, sizeof(entry));
+
     FILE *fe = fopen(FOUND_FILE, "a");
     if (fe) {
         fputs(entry, fe);
         fclose(fe);
     }
-    printf("\n[HIT %s]\n", currency);
-    printf("  Matched Hash : %s\n", hash_hex);
-    printf("  Private Key  : %s\n", dinfo.privkey_hex.c_str());
-    printf("  Pubkey Comp  : %s\n", dinfo.pubkey_compressed_hex.c_str());
-    printf("  Pubkey Uncomp: %s\n", dinfo.pubkey_uncompressed_hex.c_str());
-    printf("  Hash160      : %s\n", dinfo.hash160_hex.c_str());
-    printf("  BTC P2PKH C  : %s\n", dinfo.btc_p2pkh_compressed.c_str());
-    printf("  BTC P2PKH U  : %s\n", dinfo.btc_p2pkh_uncompressed.c_str());
-    printf("  BTC P2SH-WPKH: %s\n", dinfo.btc_p2sh_p2wpkh.c_str());
-    printf("  BTC Bech32   : %s\n", dinfo.btc_p2wpkh_bech32.c_str());
-    printf("  ETH Address  : %s\n", dinfo.eth_address.c_str());
+
     char rich[1024];
     snprintf(rich, sizeof(rich),
              "[%s] priv=%s BTC-1=%s BTC-3=%s BTC-bc1=%s ETH=%s",
-             currency,
+             job.currency,
              dinfo.privkey_hex.c_str(),
              dinfo.btc_p2pkh_compressed.c_str(),
              dinfo.btc_p2sh_p2wpkh.c_str(),
              dinfo.btc_p2wpkh_bech32.c_str(),
              dinfo.eth_address.c_str());
-    pthread_mutex_lock(&g_hit_mutex);
-    g_last_hits.push_back(std::string(rich));
-    if (g_last_hits.size() > 100) g_last_hits.erase(g_last_hits.begin());
-    pthread_mutex_unlock(&g_hit_mutex);
+
+    {
+        std::lock_guard<std::mutex> lock(g_hit_queue_mutex);
+        g_last_hits.push_back(std::string(rich));
+        if (g_last_hits.size() > 100) g_last_hits.erase(g_last_hits.begin());
+    }
 }
+
+static void drain_hit_queue(void) {
+    std::vector<hit_job_t> local_jobs;
+    {
+        std::lock_guard<std::mutex> lock(g_hit_queue_mutex);
+        if (g_hit_queue.empty()) return;
+        local_jobs.swap(g_hit_queue);
+    }
+    for (const auto &job : local_jobs) {
+        process_hit_job(job);
+    }
+}
+
 static void process_pub(Point &pub, Int &priv, int subrange_id, int thread_id) {
     if (!g_secp) return;
-    uint8_t h160_btc[HASH160_LEN];
+    uint8_t h160_btc_c[HASH160_LEN];
+    uint8_t h160_btc_u[HASH160_LEN];
     uint8_t h160_eth[HASH160_LEN];
-    g_secp->GetHash160(P2PKH, true, pub, h160_btc);
+
+    g_secp->GetHash160(P2PKH, true, pub, h160_btc_c);
+    g_secp->GetHash160(P2PKH, false, pub, h160_btc_u);
+
     unsigned char pub_bytes[64];
     pub.x.Get32Bytes(pub_bytes);
     pub.y.Get32Bytes(pub_bytes + 32);
@@ -823,30 +835,40 @@ static void process_pub(Point &pub, Int &priv, int subrange_id, int thread_id) {
     unsigned char keccak_out[32];
     KECCAK_256_Final(keccak_out, &ctx_keccak);
     memcpy(h160_eth, keccak_out + 12, 20);
-    g_derive_count.fetch_add(2);
+
+    g_derive_count.fetch_add(3);
+
     auto check_and_report = [&](const uint8_t* hash, const char* currency) {
         if (!xor_query(hash)) return;
         if (!bin_search(hash)) {
             g_xor_fp.fetch_add(1);
             return;
         }
-        char priv_hex[80];
-        priv_to_hex(priv, priv_hex);
         char hash_hex[48];
         hash_to_hex(hash, hash_hex);
-        pthread_mutex_lock(&g_hit_mutex);
         std::string key = std::string(currency) + ":" + hash_hex;
-        if (g_seen.find(key) == g_seen.end()) {
+
+        {
+            std::lock_guard<std::mutex> lock(g_hit_queue_mutex);
+            if (g_seen.find(key) != g_seen.end()) return;
             g_seen.insert(key);
-            char ts[32];
-            timestamp_utc(ts, sizeof(ts));
-            extended_write_found(hash_hex, priv, pub, currency, subrange_id, thread_id, ts);
-            (void)priv_hex;
+
+            hit_job_t job;
+            memcpy(job.hash, hash, HASH160_LEN);
+            job.priv.Set(&priv);
+            job.pub.Set(pub);
+            strncpy(job.currency, currency, sizeof(job.currency) - 1);
+            job.currency[sizeof(job.currency) - 1] = 0;
+            job.subrange_id = subrange_id;
+            job.thread_id = thread_id;
+            timestamp_utc(job.ts, sizeof(job.ts));
+            g_hit_queue.push_back(job);
             g_found.fetch_add(1);
         }
-        pthread_mutex_unlock(&g_hit_mutex);
     };
-    check_and_report(h160_btc, "BTC");
+
+    check_and_report(h160_btc_c, "BTC");
+    check_and_report(h160_btc_u, "BTC_U");
     check_and_report(h160_eth, "ETH");
 }
 typedef struct {
@@ -883,26 +905,75 @@ static void scalar_sub_mod(Int &r, Int *a, Int *n) {
         r.Sub(a);
     }
 }
+static void range_bounds(int bits, Int *out_start, Int *out_end) {
+    if (bits < 1 || bits > 256) {
+        fprintf(stderr, "error: invalid bit length %d\n", bits);
+        exit(1);
+    }
+    Int order(ORDER_HEX);
+    Int max_valid(&order);
+    max_valid.Sub((uint32_t)1);
+
+    Int start, end;
+    if (bits == 256) {
+        start.SetInt32(1);
+        start.ShiftL(255);
+        end.Set(&max_valid);
+    } else {
+        start.SetInt32(1);
+        start.ShiftL(bits - 1);
+        end.SetInt32(1);
+        end.ShiftL(bits);
+        end.Sub((uint32_t)1);
+        if (end.IsGreater(&max_valid)) {
+            end.Set(&max_valid);
+        }
+    }
+    if (start.IsZero()) {
+        start.SetInt32(1);
+    }
+    if (start.IsGreater(&end)) {
+        fprintf(stderr, "error: invalid range_bounds for bits %d\n", bits);
+        exit(1);
+    }
+    out_start->Set(&start);
+    out_end->Set(&end);
+}
+
 static void subrange_bounds(int bits, int sub_id, int sub_total, Int *out_start, Int *out_end) {
-    Int base_start, base_end, span, divisor, chunk, s, e;
-    base_start.SetInt32(1);
-    base_start.ShiftL(bits - 1);
-    base_end.SetInt32(1);
-    base_end.ShiftL(bits);
-    base_end.Sub((uint32_t)1);
+    Int base_start, base_end;
+    range_bounds(bits, &base_start, &base_end);
+
+    if (sub_total <= 1) {
+        out_start->Set(&base_start);
+        out_end->Set(&base_end);
+        return;
+    }
+    if (sub_id < 0) sub_id = 0;
+    if (sub_id >= sub_total) sub_id = sub_total - 1;
+
+    Int span;
     span.Sub(&base_end, &base_start);
     span.Add((uint32_t)1);
-    divisor.SetInt32(sub_total);
+
+    Int divisor((uint32_t)sub_total);
+    Int chunk;
     chunk.Set(&span);
     chunk.Div(&divisor);
+
+    Int s, e;
     s.Set(&chunk);
     s.Mult((uint64_t)sub_id);
     s.Add(&base_start);
-    e.Set(&chunk);
-    e.Mult((uint64_t)(sub_id + 1));
-    e.Add(&base_start);
-    e.Sub((uint32_t)1);
-    if (sub_id == sub_total - 1) e.Set(&base_end);
+
+    if (sub_id == sub_total - 1) {
+        e.Set(&base_end);
+    } else {
+        e.Set(&chunk);
+        e.Mult((uint64_t)(sub_id + 1));
+        e.Add(&base_start);
+        e.Sub((uint32_t)1);
+    }
     out_start->Set(&s);
     out_end->Set(&e);
 }
@@ -1035,31 +1106,61 @@ static void run_bidir_quad(thread_arg_t *a) {
     curve_constants_t c;
     init_curve_constants(&c);
 
-    int num_frentes = (g_threads >= 8) ? (g_threads / 2) : 2;
-    if (g_threads >= 8 && num_frentes < 4) num_frentes = 4;
-    if (num_frentes > 12) num_frentes = 12;
-    if (num_frentes % 2 != 0) num_frentes--;
-    if (num_frentes < 2) num_frentes = 2;
+    int n_segments = (g_threads + 1) / 2;
+    if (n_segments < 1) n_segments = 1;
+    int seg_id = a->thread_id / 2;
+    int is_backward = (a->thread_id % 2 != 0);
 
-    int frente_id = a->thread_id % num_frentes;
-    Int span_bidir;
-    span_bidir.Sub(&a->end, &a->start);
-    Int divisor_frentes((uint32_t)num_frentes);
-    Int paso_frente;
-    paso_frente.Set(&span_bidir);
-    paso_frente.Div(&divisor_frentes);
-    Int offset_frente;
-    offset_frente.Set(&paso_frente);
-    offset_frente.Mult((uint64_t)frente_id);
+    Int seg_start, seg_end;
+    Int span;
+    span.Sub(&a->end, &a->start);
+    span.Add((uint32_t)1);
+
+    Int divisor((uint32_t)n_segments);
+    Int chunk;
+    chunk.Set(&span);
+    chunk.Div(&divisor);
+
+    seg_start.Set(&chunk);
+    seg_start.Mult((uint64_t)seg_id);
+    seg_start.Add(&a->start);
+
+    if (seg_id == n_segments - 1) {
+        seg_end.Set(&a->end);
+    } else {
+        seg_end.Set(&chunk);
+        seg_end.Mult((uint64_t)(seg_id + 1));
+        seg_end.Add(&a->start);
+        seg_end.Sub((uint32_t)1);
+    }
+
+    if (seg_start.IsGreater(&seg_end)) {
+        seg_start.Set(&a->start);
+        seg_end.Set(&a->end);
+    }
+
+    Int seg_len, half_len, mid, mid_plus_1;
+    seg_len.Sub(&seg_end, &seg_start);
+    half_len.Set(&seg_len);
+    Int two((uint32_t)2);
+    half_len.Div(&two);
+    mid.Set(&seg_start);
+    mid.Add(&half_len);
+    mid_plus_1.Set(&mid);
+    mid_plus_1.Add((uint32_t)1);
 
     Int cur;
-    cur.Set(&a->start);
-    cur.Add(&offset_frente);
-    int dir = (frente_id % 2 == 0) ? 1 : -1;
+    if (is_backward) {
+        cur.Set(&seg_end);
+    } else {
+        cur.Set(&seg_start);
+    }
+
     Point p1, p2, p3;
     Int priv2, priv3;
     derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
     g_thread_subrange[a->thread_id].store(a->subrange_id);
+
     IntGroup batch_group(32);
     Int z_p1[32];
     Point p1_batch[32];
@@ -1069,6 +1170,7 @@ static void run_bidir_quad(thread_arg_t *a) {
     Int priv2_batch[32];
     Int priv3_batch[32];
     int batch_count = 0;
+
     while (!g_stop.load()) {
         p1_batch[batch_count] = p1;
         p2_batch[batch_count] = p2;
@@ -1078,10 +1180,33 @@ static void run_bidir_quad(thread_arg_t *a) {
         priv3_batch[batch_count].Set(&priv3);
         z_p1[batch_count].Set(&p1.z);
         batch_count++;
-        if (dir == 1) {
-            if (cur.IsGreaterOrEqual(&a->end)) {
+
+        if (!is_backward) {
+            if (cur.IsGreaterOrEqual(&mid)) {
+                apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
+                for (int i = 0; i < batch_count; i++) {
+                    process_pub(p1_batch[i], priv1_batch[i], a->subrange_id, a->thread_id);
+                    process_pub(p2_batch[i], priv2_batch[i], a->subrange_id, a->thread_id);
+                    process_pub(p3_batch[i], priv3_batch[i], a->subrange_id, a->thread_id);
+                }
+                g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 3);
+                g_checked.fetch_add((uint64_t)batch_count * 3);
+                g_fwd_checked.fetch_add((uint64_t)batch_count * 3);
+                batch_count = 0;
                 break;
             } else {
+                if (batch_count >= 32) {
+                    apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
+                    for (int i = 0; i < batch_count; i++) {
+                        process_pub(p1_batch[i], priv1_batch[i], a->subrange_id, a->thread_id);
+                        process_pub(p2_batch[i], priv2_batch[i], a->subrange_id, a->thread_id);
+                        process_pub(p3_batch[i], priv3_batch[i], a->subrange_id, a->thread_id);
+                    }
+                    g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 3);
+                    g_checked.fetch_add((uint64_t)batch_count * 3);
+                    g_fwd_checked.fetch_add((uint64_t)batch_count * 3);
+                    batch_count = 0;
+                }
                 cur.Add(&one);
                 p1 = g_secp->NextKey(p1);
                 update_endomorphisms(p1, p2, p3, c);
@@ -1089,28 +1214,37 @@ static void run_bidir_quad(thread_arg_t *a) {
                 scalar_add_mod(priv3, &c.lambda2mod, &c.order);
             }
         } else {
-            if (cur.IsLowerOrEqual(&a->start)) {
+            if (cur.IsLowerOrEqual(&mid_plus_1)) {
+                apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
+                for (int i = 0; i < batch_count; i++) {
+                    process_pub(p1_batch[i], priv1_batch[i], a->subrange_id, a->thread_id);
+                    process_pub(p2_batch[i], priv2_batch[i], a->subrange_id, a->thread_id);
+                    process_pub(p3_batch[i], priv3_batch[i], a->subrange_id, a->thread_id);
+                }
+                g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 3);
+                g_checked.fetch_add((uint64_t)batch_count * 3);
+                g_bwd_checked.fetch_add((uint64_t)batch_count * 3);
+                batch_count = 0;
                 break;
             } else {
+                if (batch_count >= 32) {
+                    apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
+                    for (int i = 0; i < batch_count; i++) {
+                        process_pub(p1_batch[i], priv1_batch[i], a->subrange_id, a->thread_id);
+                        process_pub(p2_batch[i], priv2_batch[i], a->subrange_id, a->thread_id);
+                        process_pub(p3_batch[i], priv3_batch[i], a->subrange_id, a->thread_id);
+                    }
+                    g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 3);
+                    g_checked.fetch_add((uint64_t)batch_count * 3);
+                    g_bwd_checked.fetch_add((uint64_t)batch_count * 3);
+                    batch_count = 0;
+                }
                 cur.Sub((uint32_t)1);
                 p1 = g_secp->Add(p1, negG);
                 update_endomorphisms(p1, p2, p3, c);
                 scalar_sub_mod(priv2, &c.lambda, &c.order);
                 scalar_sub_mod(priv3, &c.lambda2mod, &c.order);
             }
-        }
-        if (batch_count >= 32) {
-            apply_triplet_batch_inversion(batch_group, z_p1, p1_batch, p2_batch, p3_batch, batch_count);
-            for (int i = 0; i < batch_count; i++) {
-                process_pub(p1_batch[i], priv1_batch[i], a->subrange_id, a->thread_id);
-                process_pub(p2_batch[i], priv2_batch[i], a->subrange_id, a->thread_id);
-                process_pub(p3_batch[i], priv3_batch[i], a->subrange_id, a->thread_id);
-            }
-            g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 3);
-            g_checked.fetch_add((uint64_t)batch_count * 3);
-            if (dir == 1) g_fwd_checked.fetch_add((uint64_t)batch_count * 3);
-            else g_bwd_checked.fetch_add((uint64_t)batch_count * 3);
-            batch_count = 0;
         }
     }
     if (batch_count > 0) {
@@ -1126,7 +1260,7 @@ static void run_bidir_quad(thread_arg_t *a) {
         batch_count = 0;
     }
 }
-static void run_randoms(thread_arg_t *a) {
+static void run_randoms(thread_arg_t *a, bool single_slot = false) {
     Int span;
     span.Sub(&a->end, &a->start);
     if (span.IsZero()) { run_bidir_quad(a); return; }
@@ -1152,16 +1286,19 @@ static void run_randoms(thread_arg_t *a) {
         center.Rand(&a->start, &a->end);
         Int up; up.Set(&center);
         Int dn; dn.Set(&center);
-        derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
-        p1_dn.Set(p1_up);
-        p2_dn.Set(p2_up);
-        p3_dn.Set(p3_up);
-        priv2_dn.Set(&priv2_up);
-        priv3_dn.Set(&priv3_up);
-        int up_count = 0;
-        int dn_count = 0;
         bool up_active = true;
         bool dn_active = true;
+        if (dn.IsEqual(&a->start)) {
+            dn_active = false;
+        } else {
+            dn.Sub((uint32_t)1);
+        }
+        derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
+        if (dn_active) {
+            derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
+        }
+        int up_count = 0;
+        int dn_count = 0;
         while (!g_stop.load()) {
             if ((int)(time(nullptr) - slot_start) >= 25) break;
             if (!up_active && !dn_active) break;
@@ -1250,6 +1387,7 @@ static void run_randoms(thread_arg_t *a) {
             g_checked.fetch_add((uint64_t)dn_count * 3);
             dn_count = 0;
         }
+        if (single_slot) break;
     }
 }
 static void run_pure(thread_arg_t *a) {
@@ -1293,107 +1431,158 @@ static void run_pure(thread_arg_t *a) {
         center.Rand(&s, &e);
         Int up; up.Set(&center);
         Int dn; dn.Set(&center);
-        dn.Sub((uint32_t)1);
+        bool up_active = true;
+        bool dn_active = true;
+        if (dn.IsEqual(&s)) {
+            dn_active = false;
+        } else {
+            dn.Sub((uint32_t)1);
+        }
         derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
-        derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
+        if (dn_active) {
+            derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
+        }
 
-        int batch_count = 0;
+        int up_count = 0;
+        int dn_count = 0;
         while (!g_stop.load()) {
             if ((int)(time(nullptr) - pure_slot_start) >= 25) break;
+            if (!up_active && !dn_active) break;
 
-            p1_up_batch[batch_count] = p1_up;
-            p2_up_batch[batch_count] = p2_up;
-            p3_up_batch[batch_count] = p3_up;
-            priv1_up_batch[batch_count].Set(&up);
-            priv2_up_batch[batch_count].Set(&priv2_up);
-            priv3_up_batch[batch_count].Set(&priv3_up);
-
-            p1_dn_batch[batch_count] = p1_dn;
-            p2_dn_batch[batch_count] = p2_dn;
-            p3_dn_batch[batch_count] = p3_dn;
-            priv1_dn_batch[batch_count].Set(&dn);
-            priv2_dn_batch[batch_count].Set(&priv2_dn);
-            priv3_dn_batch[batch_count].Set(&priv3_dn);
-
-            z_up[batch_count].Set(&p1_up.z);
-            z_dn[batch_count].Set(&p1_dn.z);
-            batch_count++;
-
-            if (batch_count >= 32) {
-                apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, batch_count);
-                apply_triplet_batch_inversion(batch_group, z_dn, p1_dn_batch, p2_dn_batch, p3_dn_batch, batch_count);
-                for (int i = 0; i < batch_count; i++) {
-                    process_pub(p1_up_batch[i], priv1_up_batch[i], sid, a->thread_id);
-                    process_pub(p2_up_batch[i], priv2_up_batch[i], sid, a->thread_id);
-                    process_pub(p3_up_batch[i], priv3_up_batch[i], sid, a->thread_id);
-                    process_pub(p1_dn_batch[i], priv1_dn_batch[i], sid, a->thread_id);
-                    process_pub(p2_dn_batch[i], priv2_dn_batch[i], sid, a->thread_id);
-                    process_pub(p3_dn_batch[i], priv3_dn_batch[i], sid, a->thread_id);
+            if (up_active) {
+                p1_up_batch[up_count] = p1_up;
+                p2_up_batch[up_count] = p2_up;
+                p3_up_batch[up_count] = p3_up;
+                priv1_up_batch[up_count].Set(&up);
+                priv2_up_batch[up_count].Set(&priv2_up);
+                priv3_up_batch[up_count].Set(&priv3_up);
+                z_up[up_count].Set(&p1_up.z);
+                up_count++;
+                if (up.IsEqual(&e)) {
+                    up_active = false;
+                } else {
+                    up.Add(&one);
+                    p1_up = g_secp->NextKey(p1_up);
+                    update_endomorphisms(p1_up, p2_up, p3_up, c);
+                    scalar_add_mod(priv2_up, &c.lambda, &c.order);
+                    scalar_add_mod(priv3_up, &c.lambda2mod, &c.order);
                 }
-                g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 6);
-                g_checked.fetch_add((uint64_t)batch_count * 6);
-                batch_count = 0;
             }
 
-            up.Add(&one);
-            p1_up = g_secp->NextKey(p1_up);
-            update_endomorphisms(p1_up, p2_up, p3_up, c);
-            scalar_add_mod(priv2_up, &c.lambda, &c.order);
-            scalar_add_mod(priv3_up, &c.lambda2mod, &c.order);
+            if (dn_active) {
+                p1_dn_batch[dn_count] = p1_dn;
+                p2_dn_batch[dn_count] = p2_dn;
+                p3_dn_batch[dn_count] = p3_dn;
+                priv1_dn_batch[dn_count].Set(&dn);
+                priv2_dn_batch[dn_count].Set(&priv2_dn);
+                priv3_dn_batch[dn_count].Set(&priv3_dn);
+                z_dn[dn_count].Set(&p1_dn.z);
+                dn_count++;
+                if (dn.IsEqual(&s)) {
+                    dn_active = false;
+                } else {
+                    dn.Sub((uint32_t)1);
+                    p1_dn = g_secp->Add(p1_dn, negG);
+                    update_endomorphisms(p1_dn, p2_dn, p3_dn, c);
+                    scalar_sub_mod(priv2_dn, &c.lambda, &c.order);
+                    scalar_sub_mod(priv3_dn, &c.lambda2mod, &c.order);
+                }
+            }
 
-            dn.Sub((uint32_t)1);
-            p1_dn = g_secp->Add(p1_dn, negG);
-            update_endomorphisms(p1_dn, p2_dn, p3_dn, c);
-            scalar_sub_mod(priv2_dn, &c.lambda, &c.order);
-            scalar_sub_mod(priv3_dn, &c.lambda2mod, &c.order);
+            if (up_count >= 32 || dn_count >= 32 || (!up_active && !dn_active)) {
+                if (up_count > 0) {
+                    apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, up_count);
+                    for (int i = 0; i < up_count; i++) {
+                        process_pub(p1_up_batch[i], priv1_up_batch[i], sid, a->thread_id);
+                        process_pub(p2_up_batch[i], priv2_up_batch[i], sid, a->thread_id);
+                        process_pub(p3_up_batch[i], priv3_up_batch[i], sid, a->thread_id);
+                    }
+                    g_thread_keys[a->thread_id].fetch_add((uint64_t)up_count * 3);
+                    g_checked.fetch_add((uint64_t)up_count * 3);
+                    up_count = 0;
+                }
+                if (dn_count > 0) {
+                    apply_triplet_batch_inversion(batch_group, z_dn, p1_dn_batch, p2_dn_batch, p3_dn_batch, dn_count);
+                    for (int i = 0; i < dn_count; i++) {
+                        process_pub(p1_dn_batch[i], priv1_dn_batch[i], sid, a->thread_id);
+                        process_pub(p2_dn_batch[i], priv2_dn_batch[i], sid, a->thread_id);
+                        process_pub(p3_dn_batch[i], priv3_dn_batch[i], sid, a->thread_id);
+                    }
+                    g_thread_keys[a->thread_id].fetch_add((uint64_t)dn_count * 3);
+                    g_checked.fetch_add((uint64_t)dn_count * 3);
+                    dn_count = 0;
+                }
+            }
         }
-        if (batch_count > 0) {
-            apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, batch_count);
-            apply_triplet_batch_inversion(batch_group, z_dn, p1_dn_batch, p2_dn_batch, p3_dn_batch, batch_count);
-            for (int i = 0; i < batch_count; i++) {
+        if (up_count > 0) {
+            apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, up_count);
+            for (int i = 0; i < up_count; i++) {
                 process_pub(p1_up_batch[i], priv1_up_batch[i], sid, a->thread_id);
                 process_pub(p2_up_batch[i], priv2_up_batch[i], sid, a->thread_id);
                 process_pub(p3_up_batch[i], priv3_up_batch[i], sid, a->thread_id);
+            }
+            g_thread_keys[a->thread_id].fetch_add((uint64_t)up_count * 3);
+            g_checked.fetch_add((uint64_t)up_count * 3);
+            up_count = 0;
+        }
+        if (dn_count > 0) {
+            apply_triplet_batch_inversion(batch_group, z_dn, p1_dn_batch, p2_dn_batch, p3_dn_batch, dn_count);
+            for (int i = 0; i < dn_count; i++) {
                 process_pub(p1_dn_batch[i], priv1_dn_batch[i], sid, a->thread_id);
                 process_pub(p2_dn_batch[i], priv2_dn_batch[i], sid, a->thread_id);
                 process_pub(p3_dn_batch[i], priv3_dn_batch[i], sid, a->thread_id);
             }
-            g_thread_keys[a->thread_id].fetch_add((uint64_t)batch_count * 6);
-            g_checked.fetch_add((uint64_t)batch_count * 6);
-            batch_count = 0;
+            g_thread_keys[a->thread_id].fetch_add((uint64_t)dn_count * 3);
+            g_checked.fetch_add((uint64_t)dn_count * 3);
+            dn_count = 0;
         }
         g_pure_cycle.fetch_add(1);
     }
 }
 static void run_subrango_random(thread_arg_t *a) {
-    run_randoms(a);
+    while (!g_stop.load()) {
+        int sid = g_current_subrange.fetch_add(1) % 100;
+        Int s, e;
+        subrange_bounds(a->range_bits, sid, 100, &s, &e);
+        thread_arg_t sub_a = *a;
+        sub_a.subrange_id = sid;
+        sub_a.start.Set(&s);
+        sub_a.end.Set(&e);
+        g_thread_subrange[a->thread_id].store(sid);
+        run_randoms(&sub_a, true);
+    }
 }
-static void pin_to_big_cores(void) {
+static int get_available_cpus(void) {
+    int cpus = 0;
+#if defined(__linux__)
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    if (sched_getaffinity(0, sizeof(cpu_set_t), &cpuset) == 0) {
+        cpus = CPU_COUNT(&cpuset);
+    }
+#endif
+    if (cpus <= 0) {
+        long sys_cpus = sysconf(_SC_NPROCESSORS_ONLN);
+        cpus = (sys_cpus > 0) ? (int)sys_cpus : 1;
+    }
+    if (cpus < 1) cpus = 1;
+    if (cpus > THREAD_MAX) cpus = THREAD_MAX;
+    return cpus;
+}
+static void pin_worker_thread(int thread_id) {
 #if defined(__linux__) && !defined(__ANDROID__)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
-    int num_cpus = sysconf(_SC_NPROCESSORS_ONLN);
-    if (num_cpus <= 0) return;
-    for (int i = 0; i < num_cpus; ++i) {
-        char path[256];
-        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", i);
-        FILE *f = fopen(path, "r");
-        if (f) {
-            long freq = 0;
-            if (fscanf(f, "%ld", &freq) == 1) {
-                if (freq > 1500000) CPU_SET(i, &cpuset);
-            }
-            fclose(f);
-        }
-    }
-    if (CPU_COUNT(&cpuset) > 0) {
+    int real_cpus = get_available_cpus();
+    if (real_cpus > 0) {
+        CPU_SET(thread_id % real_cpus, &cpuset);
         pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
     }
 #endif
 }
 static void* worker(void *arg) {
     thread_arg_t *a = (thread_arg_t*)arg;
-    pin_to_big_cores();
+    pin_worker_thread(a->thread_id);
     g_thread_active[a->thread_id].store(1);
     g_thread_keys[a->thread_id].store(0);
     switch (a->mode) {
@@ -1409,17 +1598,23 @@ static void* worker(void *arg) {
 }
 static void* monitor_worker(void *arg) {
     (void)arg;
+    time_t last_draw = 0;
     while (!g_stop.load()) {
-        ui_draw();
-        usleep(100000);
+        drain_hit_queue();
+        time_t now = time(nullptr);
+        if (now - last_draw >= 25 || last_draw == 0) {
+            ui_draw();
+            last_draw = now;
+        }
         std::unique_lock<std::mutex> lock(g_monitor_mutex);
-        g_ui_cv.wait_for(lock, std::chrono::milliseconds(49900), [](){ return g_stop.load() != 0; });
+        g_ui_cv.wait_for(lock, std::chrono::milliseconds(500), [](){ return g_stop.load() != 0; });
     }
+    drain_hit_queue();
+    ui_draw();
     return nullptr;
 }
 static void on_sigint(int) {
     g_stop.store(1);
-    g_ui_cv.notify_all();
 }
 static void usage(const char *prog) {
     fprintf(stderr, "================================================================================\n");
@@ -1587,12 +1782,17 @@ int main(int argc, char **argv) {
     if (seen_R) g_range_bits.store(range_value);
     if (seen_Sub) g_subranges = 100;
     else if (g_mode != 4) g_subranges = 1;
-    if (seen_t) g_threads = thread_value;
-    else {
-        long c = sysconf(_SC_NPROCESSORS_ONLN);
-        if (c < 1) c = 1;
-        g_threads = (int)(c > 1 ? c - 1 : 1);
-        if (g_threads > THREAD_MAX) g_threads = THREAD_MAX;
+    int real_cpus = get_available_cpus();
+    if (seen_t) {
+        if (thread_value > real_cpus) {
+            fprintf(stderr, "warning: requested -t %d exceeds available CPUs (%d); limiting to %d threads\n",
+                    thread_value, real_cpus, real_cpus);
+            g_threads = real_cpus;
+        } else {
+            g_threads = thread_value;
+        }
+    } else {
+        g_threads = real_cpus;
     }
     if (g_mode == 4) {
         g_range_bits.store(256);
@@ -1632,17 +1832,9 @@ int main(int argc, char **argv) {
         g_thread_keys[i].store(0);
     }
     if (g_mode == 4) {
-        g_global_start.SetInt32(1);
-        g_global_start.ShiftL(255);
-        g_global_end.SetInt32(1);
-        g_global_end.ShiftL(256);
-        g_global_end.Sub((uint32_t)1);
+        range_bounds(256, &g_global_start, &g_global_end);
     } else {
-        g_global_start.SetInt32(1);
-        g_global_start.ShiftL(g_range_bits.load() - 1);
-        g_global_end.SetInt32(1);
-        g_global_end.ShiftL(g_range_bits.load());
-        g_global_end.Sub((uint32_t)1);
+        range_bounds(g_range_bits.load(), &g_global_start, &g_global_end);
     }
     ui_enter();
     pthread_t monitor_tid;
@@ -1653,11 +1845,7 @@ int main(int argc, char **argv) {
         int sid = i % g_subranges;
         Int s, e;
         if (g_mode == 4) {
-            s.SetInt32(1);
-            s.ShiftL(255);
-            e.SetInt32(1);
-            e.ShiftL(256);
-            e.Sub((uint32_t)1);
+            range_bounds(256, &s, &e);
         } else if (g_mode == 2 && g_subranges == 1) {
             s.Set(&g_global_start);
             e.Set(&g_global_end);

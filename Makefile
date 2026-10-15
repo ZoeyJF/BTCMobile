@@ -5,7 +5,7 @@ UNAME_M := $(shell uname -m)
 ifeq ($(UNAME_M),x86_64)
     ARCH_FLAGS = -march=native
 else ifeq ($(UNAME_M),aarch64)
-    ARCH_FLAGS = -march=armv8-a+crypto
+    ARCH_FLAGS = -march=armv8-a
 else
     ARCH_FLAGS =
 endif
@@ -34,24 +34,42 @@ LIB_OBJ = $(patsubst Biblioteca/%.cpp,$(OBJDIR)/%.o,$(LIB_CPP)) \
           $(patsubst Biblioteca/%.c,$(OBJDIR)/%.o,$(LIB_C))
 CREATE_OBJ = $(OBJDIR)/CREATE-BIX.o
 BTC_OBJ    = $(OBJDIR)/BTC.o
+
 all: CREATE-BIX BTC
+
 CREATE-BIX: $(CREATE_OBJ) $(LIB_OBJ)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o CREATE-BIX $(CREATE_OBJ) $(LIB_OBJ)
+
 BTC: $(BTC_OBJ) $(LIB_OBJ)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) -o BTC $(BTC_OBJ) $(LIB_OBJ)
+
 $(OBJDIR)/%.o: Biblioteca/%.cpp
 > @mkdir -p $(OBJDIR)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) $(WARN) -c -o $@ $<
+
 $(OBJDIR)/%.o: Biblioteca/%.c
 > @mkdir -p $(OBJDIR)
 > $(CC) $(OPT) $(INC) $(PTH) $(WARN) -c -o $@ $<
+
 $(OBJDIR)/CREATE-BIX.o: CREATE-BIX.cpp
 > @mkdir -p $(OBJDIR)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) $(WARN) -c -o $@ $<
+
 $(OBJDIR)/BTC.o: BTC.cpp
 > @mkdir -p $(OBJDIR)
 > $(CXX) $(OPT) $(STD) $(INC) $(PTH) $(WARN) -c -o $@ $<
+
+test: WARN = -Wall -Wextra
+test: clean all
+
+sanitizer: OPT += -fsanitize=address,undefined -g
+sanitizer: clean all
+
+tsan: OPT += -fsanitize=thread -g
+tsan: clean all
+
 clean:
 > rm -rf $(OBJDIR)
 > rm -f CREATE-BIX BTC
-.PHONY: all clean
+
+.PHONY: all clean test sanitizer tsan

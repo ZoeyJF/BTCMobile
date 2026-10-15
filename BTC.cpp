@@ -1253,6 +1253,8 @@ static void run_randoms(thread_arg_t *a) {
     }
 }
 static void run_pure(thread_arg_t *a) {
+    Int one((uint32_t)1);
+    Point negG = g_secp->Negation(g_secp->G);
     curve_constants_t c;
     init_curve_constants(&c);
     g_thread_subrange[a->thread_id].store(a->subrange_id);
@@ -1287,31 +1289,36 @@ static void run_pure(thread_arg_t *a) {
         a->range_bits = rbits;
         a->subrange_id = sid;
         g_range_bits.store(rbits);
+        Int center;
+        center.Rand(&s, &e);
+        Int up; up.Set(&center);
+        Int dn; dn.Set(&center);
+        dn.Sub((uint32_t)1);
+        derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
+        derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
+
         int batch_count = 0;
         while (!g_stop.load()) {
             if ((int)(time(nullptr) - pure_slot_start) >= 25) break;
-            Int center;
-            center.Rand(&s, &e);
-            Int up; up.Set(&center);
-            Int dn; dn.Set(&center);
-            dn.Sub((uint32_t)1);
-            derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
-            derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
+
             p1_up_batch[batch_count] = p1_up;
             p2_up_batch[batch_count] = p2_up;
             p3_up_batch[batch_count] = p3_up;
             priv1_up_batch[batch_count].Set(&up);
             priv2_up_batch[batch_count].Set(&priv2_up);
             priv3_up_batch[batch_count].Set(&priv3_up);
+
             p1_dn_batch[batch_count] = p1_dn;
             p2_dn_batch[batch_count] = p2_dn;
             p3_dn_batch[batch_count] = p3_dn;
             priv1_dn_batch[batch_count].Set(&dn);
             priv2_dn_batch[batch_count].Set(&priv2_dn);
             priv3_dn_batch[batch_count].Set(&priv3_dn);
+
             z_up[batch_count].Set(&p1_up.z);
             z_dn[batch_count].Set(&p1_dn.z);
             batch_count++;
+
             if (batch_count >= 32) {
                 apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, batch_count);
                 apply_triplet_batch_inversion(batch_group, z_dn, p1_dn_batch, p2_dn_batch, p3_dn_batch, batch_count);
@@ -1327,6 +1334,18 @@ static void run_pure(thread_arg_t *a) {
                 g_checked.fetch_add((uint64_t)batch_count * 6);
                 batch_count = 0;
             }
+
+            up.Add(&one);
+            p1_up = g_secp->NextKey(p1_up);
+            update_endomorphisms(p1_up, p2_up, p3_up, c);
+            scalar_add_mod(priv2_up, &c.lambda, &c.order);
+            scalar_add_mod(priv3_up, &c.lambda2mod, &c.order);
+
+            dn.Sub((uint32_t)1);
+            p1_dn = g_secp->Add(p1_dn, negG);
+            update_endomorphisms(p1_dn, p2_dn, p3_dn, c);
+            scalar_sub_mod(priv2_dn, &c.lambda, &c.order);
+            scalar_sub_mod(priv3_dn, &c.lambda2mod, &c.order);
         }
         if (batch_count > 0) {
             apply_triplet_batch_inversion(batch_group, z_up, p1_up_batch, p2_up_batch, p3_up_batch, batch_count);

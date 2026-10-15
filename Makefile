@@ -1,8 +1,16 @@
 .RECIPEPREFIX = >
 CXX = g++
 CC  = gcc
+UNAME_M := $(shell uname -m)
+ifeq ($(UNAME_M),x86_64)
+    ARCH_FLAGS = -march=native
+else ifeq ($(UNAME_M),aarch64)
+    ARCH_FLAGS = -march=armv8-a+crypto
+else
+    ARCH_FLAGS =
+endif
 INC  = -IBiblioteca
-OPT  = -O3 -DNDEBUG
+OPT  = -O3 -DNDEBUG $(ARCH_FLAGS)
 STD  = -std=c++17
 PTH  = -pthread
 WARN = -Wall
@@ -46,5 +54,4 @@ $(OBJDIR)/BTC.o: BTC.cpp
 clean:
 > rm -rf $(OBJDIR)
 > rm -f CREATE-BIX BTC
-> rm -f BTC.o CREATE-BIX.o
 .PHONY: all clean

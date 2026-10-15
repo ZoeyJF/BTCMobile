@@ -875,9 +875,12 @@ static void scalar_add_mod(Int &r, Int *a, Int *n) {
     }
 }
 static void scalar_sub_mod(Int &r, Int *a, Int *n) {
-    r.Sub(a);
-    while (r.IsNegative()) {
-        r.Add(n);
+    if (r.IsLower(a)) {
+        Int tmp(n);
+        tmp.Sub(a);
+        r.Add(&tmp);
+    } else {
+        r.Sub(a);
     }
 }
 static void subrange_bounds(int bits, int sub_id, int sub_total, Int *out_start, Int *out_end) {
@@ -906,7 +909,6 @@ static void subrange_bounds(int bits, int sub_id, int sub_total, Int *out_start,
 static void derive_triplet(Int &priv, Point &p1, Point &p2, Point &p3,
                            Int &priv2, Int &priv3,
                            curve_constants_t *c) {
-    Int temp2, temp3;
     p1 = g_secp->ComputePublicKey(&priv);
     p1.Reduce();
     p2.x.ModMulK1(&p1.x, &c->beta);
@@ -915,12 +917,10 @@ static void derive_triplet(Int &priv, Point &p1, Point &p2, Point &p3,
     p3.x.ModMulK1(&p1.x, &c->beta2);
     p3.y.Set(&p1.y);
     p3.z.Set(&p1.z);
-    temp2.Set(&priv);
-    temp2.Mult(&c->lambda);
-    temp2.Div(&c->order, &priv2);
-    temp3.Set(&priv);
-    temp3.Mult(&c->lambda2mod);
-    temp3.Div(&c->order, &priv3);
+    priv2.Set(&priv);
+    priv2.ModMulK1order(&c->lambda);
+    priv3.Set(&priv);
+    priv3.ModMulK1order(&c->lambda2mod);
 }
 static void update_endomorphisms(Point &p1, Point &p2, Point &p3, curve_constants_t &c) {
     p2.x.ModMulK1(&p1.x, &c.beta);
@@ -1034,21 +1034,28 @@ static void run_bidir_quad(thread_arg_t *a) {
     Point negG = g_secp->Negation(g_secp->G);
     curve_constants_t c;
     init_curve_constants(&c);
-    int num_hilos = g_threads;
-    if (num_hilos < 1) num_hilos = 1;
+
+    int num_frentes = (g_threads >= 8) ? (g_threads / 2) : 2;
+    if (g_threads >= 8 && num_frentes < 4) num_frentes = 4;
+    if (num_frentes > 12) num_frentes = 12;
+    if (num_frentes % 2 != 0) num_frentes--;
+    if (num_frentes < 2) num_frentes = 2;
+
+    int frente_id = a->thread_id % num_frentes;
     Int span_bidir;
     span_bidir.Sub(&a->end, &a->start);
-    Int divisor_bidir((uint32_t)num_hilos);
-    Int paso_bidir;
-    paso_bidir.Set(&span_bidir);
-    paso_bidir.Div(&divisor_bidir);
-    Int offset_bidir;
-    offset_bidir.Set(&paso_bidir);
-    offset_bidir.Mult((uint64_t)a->thread_id);
+    Int divisor_frentes((uint32_t)num_frentes);
+    Int paso_frente;
+    paso_frente.Set(&span_bidir);
+    paso_frente.Div(&divisor_frentes);
+    Int offset_frente;
+    offset_frente.Set(&paso_frente);
+    offset_frente.Mult((uint64_t)frente_id);
+
     Int cur;
     cur.Set(&a->start);
-    cur.Add(&offset_bidir);
-    int dir = (a->thread_id % 2 == 0) ? 1 : -1;
+    cur.Add(&offset_frente);
+    int dir = (frente_id % 2 == 0) ? 1 : -1;
     Point p1, p2, p3;
     Int priv2, priv3;
     derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
@@ -1073,9 +1080,7 @@ static void run_bidir_quad(thread_arg_t *a) {
         batch_count++;
         if (dir == 1) {
             if (cur.IsGreaterOrEqual(&a->end)) {
-                dir = -1;
-                cur.Set(&a->end);
-                derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
+                break;
             } else {
                 cur.Add(&one);
                 p1 = g_secp->NextKey(p1);
@@ -1085,9 +1090,7 @@ static void run_bidir_quad(thread_arg_t *a) {
             }
         } else {
             if (cur.IsLowerOrEqual(&a->start)) {
-                dir = 1;
-                cur.Set(&a->start);
-                derive_triplet(cur, p1, p2, p3, priv2, priv3, &c);
+                break;
             } else {
                 cur.Sub((uint32_t)1);
                 p1 = g_secp->Add(p1, negG);
@@ -1291,12 +1294,9 @@ static void run_pure(thread_arg_t *a) {
             center.Rand(&s, &e);
             Int up; up.Set(&center);
             Int dn; dn.Set(&center);
+            dn.Sub((uint32_t)1);
             derive_triplet(up, p1_up, p2_up, p3_up, priv2_up, priv3_up, &c);
-            p1_dn.Set(p1_up);
-            p2_dn.Set(p2_up);
-            p3_dn.Set(p3_up);
-            priv2_dn.Set(&priv2_up);
-            priv3_dn.Set(&priv3_up);
+            derive_triplet(dn, p1_dn, p2_dn, p3_dn, priv2_dn, priv3_dn, &c);
             p1_up_batch[batch_count] = p1_up;
             p2_up_batch[batch_count] = p2_up;
             p3_up_batch[batch_count] = p3_up;
@@ -1449,7 +1449,14 @@ static bool select_storage_mode(const char* filename) {
     }
     return false;
 }
+static void int_selfcheck(void) {
+    if (SHA3_Selftest() != 0) {
+        fprintf(stderr, "error: SHA3 self-test failed\n");
+        exit(1);
+    }
+}
 int main(int argc, char **argv) {
+    int_selfcheck();
     if (argc < 2) {
         usage(argv[0]);
         return 1;

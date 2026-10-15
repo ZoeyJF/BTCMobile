@@ -178,6 +178,10 @@ void Int::SetBase16(const char *str) {
 	if (!str) return;
 	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) str += 2;
 	int len = (int)strlen(str);
+	if (len > 64) {
+		fprintf(stderr, "error: hex string exceeds 64 characters\n");
+		exit(1);
+	}
 	if (len == 0) return;
 	unsigned char bytes[32] = {0};
 	int byte_idx = 31;
@@ -238,6 +242,10 @@ void Int::Mult(uint64_t u64) {
 		unsigned __int128 prod = (unsigned __int128)bits[i] * u64 + carry;
 		bits[i] = (uint64_t)prod;
 		carry = prod >> 64;
+	}
+	if (carry > 0) {
+		fprintf(stderr, "error: 256-bit overflow in Mult\n");
+		exit(1);
 	}
 }
 void Int::IMult(int64_t i64) {

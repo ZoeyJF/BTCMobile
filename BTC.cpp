@@ -1616,6 +1616,71 @@ static void* monitor_worker(void *arg) {
 static void on_sigint(int) {
     g_stop.store(1);
 }
+static void generate_test_dataset(void) {
+    printf("[TEST] Generating Test.hex with targets across bit ranges 1 to 256...\n");
+    FILE *f = fopen("Test.hex", "w");
+    if (!f) {
+        fprintf(stderr, "error: cannot create Test.hex\n");
+        return;
+    }
+    uint64_t total_generated = 0;
+    for (int bits = 1; bits <= 256; bits++) {
+        Int start, end;
+        range_bounds(bits, &start, &end);
+
+        auto add_target_priv = [&](Int &priv) {
+            if (priv.IsZero()) priv.SetInt32(1);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h160[HASH160_LEN];
+            g_secp->GetHash160(P2PKH, true, pub, h160);
+            char hex[48];
+            hash_to_hex(h160, hex);
+            if (strlen(hex) == 40) {
+                fprintf(f, "%s\n", hex);
+                total_generated++;
+            }
+        };
+
+        Int span;
+        span.Sub(&end, &start);
+
+        for (int i = 0; i < 10; i++) {
+            Int p(&start);
+            p.Add((uint64_t)i);
+            if (p.IsLowerOrEqual(&end)) add_target_priv(p);
+        }
+
+        Int half_span(&span);
+        Int two((uint32_t)2);
+        half_span.Div(&two);
+        Int center(&start);
+        center.Add(&half_span);
+        for (int i = 0; i < 10; i++) {
+            Int p(&center);
+            p.Add((uint64_t)i);
+            if (p.IsLowerOrEqual(&end)) add_target_priv(p);
+        }
+
+        for (int i = 0; i < 10; i++) {
+            Int p(&end);
+            if (i > 0) p.Sub((uint64_t)i);
+            if (p.IsGreaterOrEqual(&start)) add_target_priv(p);
+        }
+
+        int rand_count = (bits <= 20) ? 5 : 20;
+        for (int i = 0; i < rand_count; i++) {
+            Int p;
+            p.Rand(&start, &end);
+            add_target_priv(p);
+        }
+    }
+    fclose(f);
+    printf("[TEST] Done! %llu target Hash160 addresses written to Test.hex\n", (unsigned long long)total_generated);
+    printf("[TEST] To test pipeline:\n");
+    printf("       1) Run: ./CREATE-BIX Test.hex\n");
+    printf("       2) Run: ./BTC -R <bits> -S (or -B / -Random / -Pure)\n");
+}
+
 static void usage(const char *prog) {
     fprintf(stderr, "================================================================================\n");
     fprintf(stderr, "<x> BTC-MOBILE <x> By Zoey Alejandroo JF <x>\n");
@@ -1631,6 +1696,8 @@ static void usage(const char *prog) {
     fprintf(stderr, "      Pure random across full secp256k1 space, 100 subranges, 24 cycles.\n");
     fprintf(stderr, "  %s -R <1-256> -Subrango -Random\n", prog);
     fprintf(stderr, "      Split range into 100 subranges and search randomly.\n");
+    fprintf(stderr, "  %s -Test\n", prog);
+    fprintf(stderr, "      Generates Test.hex dataset with targets across bit ranges 1-256.\n");
     fprintf(stderr, "--------------------------------------------------------------------------------\n");
     fprintf(stderr, "OPTIONS:\n");
     fprintf(stderr, "  -R N         Range bits between 1 and 256\n");
@@ -1640,6 +1707,7 @@ static void usage(const char *prog) {
     fprintf(stderr, "  -Pure        Pure random global mode (no -R or -Subrango)\n");
     fprintf(stderr, "  -Subrango    Split range into 100 divisions\n");
     fprintf(stderr, "  -t N         Thread count between 1 and 64\n");
+    fprintf(stderr, "  -Test        Generate test dataset across all bit ranges 1-256\n");
     fprintf(stderr, "================================================================================\n");
 }
 static int parse_int(const char *s, int *out) {
@@ -1675,12 +1743,13 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         return 1;
     }
-    int seen_S = 0, seen_B = 0, seen_Randoms = 0, seen_Pure = 0;
+    int seen_S = 0, seen_B = 0, seen_Randoms = 0, seen_Pure = 0, seen_Test = 0;
     int seen_R = 0, seen_Sub = 0, seen_t = 0;
     int range_value = 0, thread_value = 0;
     for (int i = 1; i < argc; i++) {
         const char *s = argv[i];
-        if (strcmp(s, "-S") == 0) seen_S = 1;
+        if (strcmp(s, "-Test") == 0) seen_Test = 1;
+        else if (strcmp(s, "-S") == 0) seen_S = 1;
         else if (strcmp(s, "-B") == 0) seen_B = 1;
         else if (strcmp(s, "-Random") == 0) seen_Randoms = 1;
         else if (strcmp(s, "-Pure") == 0) seen_Pure = 1;
@@ -1732,6 +1801,20 @@ int main(int argc, char **argv) {
             usage(argv[0]);
             return 1;
         }
+    }
+    if (seen_Test) {
+        int_randominit();
+        srand((unsigned int)time(nullptr));
+        {
+            std::lock_guard<std::mutex> lock(g_secp_init_mutex);
+            if (!g_secp) {
+                g_secp = new Secp256K1();
+                g_secp->Init();
+            }
+        }
+        generate_test_dataset();
+        delete g_secp;
+        return 0;
     }
     int mode_flags = seen_S + seen_B + seen_Randoms + seen_Pure;
     if (mode_flags == 0) {

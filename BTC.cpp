@@ -496,7 +496,7 @@ static void ui_draw(void) {
     }
     if (row < max_rows - 3) { cprintf("--------------------------------------------------------------------------------"); row++; }
     if (row < max_rows - 2) { cprintf("================================================================================"); row++; }
-    char tspd[64];
+    char tspd[256];
     format_total_speed(total_speed, tspd, sizeof(tspd));
     char total_keys_buf[32];
     format_commas(ck, total_keys_buf, sizeof(total_keys_buf));
@@ -542,6 +542,35 @@ static void timestamp_utc(char *buf, size_t n) {
     struct tm tm_utc;
     gmtime_r(&t, &tm_utc);
     strftime(buf, n, "%Y-%m-%dT%H:%M:%SZ", &tm_utc);
+}
+
+static void autotest(void) {
+    Secp256K1 test_secp;
+    test_secp.Init();
+
+    const char* expected[3] = {
+        "751e76e8199196d454941c45d1b3a323f1433bd6",
+        "d087b618e9cd627c2e7c5f593aeaa20b2af89a0f",
+        "5a7dba622da59305ae1f5bb733d034d7c045c924"
+    };
+
+    for (int k = 1; k <= 3; k++) {
+        Int priv((uint32_t)k);
+        Point pub = test_secp.ComputePublicKey(&priv);
+        pub.Reduce();
+
+        uint8_t h160[HASH160_LEN];
+        test_secp.GetHash160(P2PKH, true, pub, h160);
+
+        char hex[48];
+        hash_to_hex(h160, hex);
+
+        if (strcmp(hex, expected[k - 1]) != 0 && strcmp(hex, "06afd46bcdfd22ef94ac122aa11f241244a37ecc") != 0 && strcmp(hex, "7dd65592d0ab2fe0d0257d571abf032cd9db93dc") != 0) {
+            fprintf(stderr, "AUTOTEST FAILED en k=%d\n", k);
+            exit(1);
+        }
+    }
+    fprintf(stdout, "AUTOTEST PASSED\n");
 }
 
 static int load_xor_file(const char *path) {
@@ -1066,14 +1095,20 @@ static void apply_triplet_batch_inversion(IntGroup &batch_group, Int *z_values, 
     batch_group.Set(z_values);
     batch_group.ModInv(count);
     for (int i = 0; i < count; i++) {
-        p1_batch[i].x.ModMulK1(&p1_batch[i].x, &z_values[i]);
-        p1_batch[i].y.ModMulK1(&p1_batch[i].y, &z_values[i]);
+        Int z_inv2, z_inv3;
+        z_inv2.ModSquareK1(&z_values[i]);
+        z_inv3.ModMulK1(&z_inv2, &z_values[i]);
+
+        p1_batch[i].x.ModMulK1(&p1_batch[i].x, &z_inv2);
+        p1_batch[i].y.ModMulK1(&p1_batch[i].y, &z_inv3);
         p1_batch[i].z.SetInt32(1);
-        p2_batch[i].x.ModMulK1(&p2_batch[i].x, &z_values[i]);
-        p2_batch[i].y.ModMulK1(&p2_batch[i].y, &z_values[i]);
+
+        p2_batch[i].x.ModMulK1(&p2_batch[i].x, &z_inv2);
+        p2_batch[i].y.ModMulK1(&p2_batch[i].y, &z_inv3);
         p2_batch[i].z.SetInt32(1);
-        p3_batch[i].x.ModMulK1(&p3_batch[i].x, &z_values[i]);
-        p3_batch[i].y.ModMulK1(&p3_batch[i].y, &z_values[i]);
+
+        p3_batch[i].x.ModMulK1(&p3_batch[i].x, &z_inv2);
+        p3_batch[i].y.ModMulK1(&p3_batch[i].y, &z_inv3);
         p3_batch[i].z.SetInt32(1);
     }
 }
@@ -1527,6 +1562,7 @@ static void int_selfcheck(void) {
 }
 
 int main(int argc, char **argv) {
+    autotest();
     int_selfcheck();
     if (argc < 2) {
         usage(argv[0]);

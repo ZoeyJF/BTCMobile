@@ -589,20 +589,20 @@ static int stage_write_xor(void) {
     hdr.entry_count = xf.entry_count;
     if (fwrite(&hdr, sizeof(hdr), 1, fxor) != 1) {
         fprintf(stderr, "[CREATE] write header failed\n");
-        free(iobuf);
+        if (iobuf) free(iobuf);
         fclose(fxor);
         xorfilter_free(&xf);
         return -1;
     }
     if (fwrite(xf.fingerprints, 1, xf.array_length, fxor) != xf.array_length) {
         fprintf(stderr, "[CREATE] write fingerprints failed\n");
-        free(iobuf);
+        if (iobuf) free(iobuf);
         fclose(fxor);
         xorfilter_free(&xf);
         return -1;
     }
     fclose(fxor);
-    free(iobuf);
+    if (iobuf) free(iobuf);
     uint64_t xor_bytes = (uint64_t)sizeof(xor_header_t) + xf.array_length;
     double elapsed = now_sec() - t0;
     fprintf(stderr, "[CREATE] stage4 done bits %u fp_bits %u entries %llu in %.1f s\n",

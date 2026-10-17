@@ -821,6 +821,7 @@ static void process_hit_job(const hit_job_t &job) {
     FILE *fe = fopen(FOUND_FILE, "a");
     if (fe) {
         fputs(entry, fe);
+        fflush(fe);
         fclose(fe);
     }
 
@@ -880,33 +881,17 @@ static void report_hit(const uint8_t *hash, Int &priv, Point &pub, const char *c
 static void process_pub(Point &pub, Int &priv, int subrange_id, int thread_id) {
     if (!g_secp) return;
     uint8_t h160_btc_c[HASH160_LEN];
-    uint8_t h160_btc_u[HASH160_LEN];
 
     g_secp->GetHash160(P2PKH, true, pub, h160_btc_c);
-    g_secp->GetHash160(P2PKH, false, pub, h160_btc_u);
+    g_derive_count.fetch_add(1);
 
-    g_derive_count.fetch_add(2);
-
-    int hit_c = xor_query(h160_btc_c);
-    int hit_u = xor_query(h160_btc_u);
-
-    if (hit_c) {
+    if (xor_query(h160_btc_c)) {
         if (bin_search(h160_btc_c)) {
             report_hit(h160_btc_c, priv, pub, "BTC", subrange_id, thread_id);
         } else {
             g_xor_fp.fetch_add(1);
         }
-    }
 
-    if (hit_u) {
-        if (bin_search(h160_btc_u)) {
-            report_hit(h160_btc_u, priv, pub, "BTC_U", subrange_id, thread_id);
-        } else {
-            g_xor_fp.fetch_add(1);
-        }
-    }
-
-    if (hit_c || hit_u) {
         unsigned char pub_bytes[64];
         pub.x.Get32Bytes(pub_bytes);
         pub.y.Get32Bytes(pub_bytes + 32);

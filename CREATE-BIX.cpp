@@ -13,6 +13,7 @@
 #include <queue>
 #include "BTC.h"
 #include "xorfilter.h"
+
 #define IO_BUFFER_SIZE (4 * 1024 * 1024)
 #define SORT_CHUNK_BYTES (64ULL * 1024 * 1024)
 #define OUTPUT_BUF_BYTES (8 * 1024 * 1024)
@@ -21,9 +22,11 @@
 #define IDX_FULL_ENTRY_SIZE   28
 #define IDX_SPARSE_ENTRY_SIZE 24
 #define IDX_SPARSE_STRIDE     64
+
 static int g_idx_mode = IDX_MODE_SPARSE;
 static uint8_t g_hex_table[256];
 static int g_hex_table_ready = 0;
+
 static void init_hex_table(void) {
     if (g_hex_table_ready) return;
     for (int i = 0; i < 256; i++) g_hex_table[i] = 0xFF;
@@ -32,14 +35,17 @@ static void init_hex_table(void) {
     for (int i = 'A'; i <= 'F'; i++) g_hex_table[i] = (uint8_t)(i - 'A' + 10);
     g_hex_table_ready = 1;
 }
+
 static int cmp_hash(const void *a, const void *b) {
     return memcmp(a, b, HASH160_LEN);
 }
+
 static double now_sec(void) {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
+
 static void print_size(const char *name, uint64_t bytes) {
     double kb = (double)bytes / 1024.0;
     double mb = kb / 1024.0;
@@ -55,6 +61,7 @@ static void print_size(const char *name, uint64_t bytes) {
                 name, (unsigned long long)bytes, kb);
     }
 }
+
 static int show_menu_and_select(void) {
     fprintf(stderr, "\n");
     fprintf(stderr, "============================================================\n");
@@ -88,6 +95,7 @@ static int show_menu_and_select(void) {
     if (buf[0] == 'B') return IDX_MODE_SPARSE;
     return -1;
 }
+
 static int stage_hex_to_bin(const char *hex_path) {
     init_hex_table();
     int fd = open(hex_path, O_RDONLY);
@@ -216,15 +224,18 @@ static int stage_hex_to_bin(const char *hex_path) {
             (unsigned long long)(count / IDX_SPARSE_STRIDE + 1), sparse_mb);
     return 0;
 }
+
 typedef struct {
     uint8_t hash[HASH160_LEN];
     int     idx;
 } heap_entry_t;
+
 typedef struct {
     bool operator()(const heap_entry_t &a, const heap_entry_t &b) const {
         return memcmp(a.hash, b.hash, HASH160_LEN) > 0;
     }
 } heap_cmp_t;
+
 static int stage_sort_bin(void) {
     struct stat st;
     if (stat(BIN_FILE, &st) != 0) {
@@ -312,7 +323,7 @@ static int stage_sort_bin(void) {
     fclose(fin);
     free(chunk_buf);
     if (rin) free(rin);
-    fprintf(stderr, "\n[CREATE] stage2 chunks sorted, starting k-way merge\n");
+    fprintf(stderr, "\n[CREATE] stage2 chunks sorted, starting k-way merge and deduplication\n");
     std::vector<FILE*> files;
     std::vector<char*> rb_buffers;
     files.reserve(temp_files.size());
@@ -352,20 +363,25 @@ static int stage_sort_bin(void) {
         }
     }
     uint64_t written = 0;
+    uint8_t prev_hash[HASH160_LEN];
+    memset(prev_hash, 0, HASH160_LEN);
     double last_print = now_sec();
     while (!heap.empty()) {
         heap_entry_t e = heap.top();
         heap.pop();
-        if (fwrite(e.hash, 1, HASH160_LEN, fout) != HASH160_LEN) {
-            fprintf(stderr, "\n[CREATE] merge write failed\n");
-            fclose(fout);
-            if (wout) free(wout);
-            for (size_t i = 0; i < files.size(); i++) fclose(files[i]);
-            for (size_t i = 0; i < rb_buffers.size(); i++) free(rb_buffers[i]);
-            for (size_t i = 0; i < temp_files.size(); i++) unlink(temp_files[i].c_str());
-            return -1;
+        if (written == 0 || memcmp(prev_hash, e.hash, HASH160_LEN) != 0) {
+            if (fwrite(e.hash, 1, HASH160_LEN, fout) != HASH160_LEN) {
+                fprintf(stderr, "\n[CREATE] merge write failed\n");
+                fclose(fout);
+                if (wout) free(wout);
+                for (size_t i = 0; i < files.size(); i++) fclose(files[i]);
+                for (size_t i = 0; i < rb_buffers.size(); i++) free(rb_buffers[i]);
+                for (size_t i = 0; i < temp_files.size(); i++) unlink(temp_files[i].c_str());
+                return -1;
+            }
+            memcpy(prev_hash, e.hash, HASH160_LEN);
+            written++;
         }
-        written++;
         heap_entry_t next;
         if (fread(next.hash, 1, HASH160_LEN, files[e.idx]) == HASH160_LEN) {
             next.idx = e.idx;
@@ -373,8 +389,8 @@ static int stage_sort_bin(void) {
         }
         double now = now_sec();
         if (now - last_print >= 1.0) {
-            fprintf(stderr, "\r[CREATE] stage2 merge %llu / %llu      ",
-                    (unsigned long long)written, (unsigned long long)n);
+            fprintf(stderr, "\r[CREATE] stage2 merge %llu unique hashes      ",
+                    (unsigned long long)written);
             fflush(stderr);
             last_print = now;
         }
@@ -385,10 +401,11 @@ static int stage_sort_bin(void) {
     for (size_t i = 0; i < rb_buffers.size(); i++) free(rb_buffers[i]);
     for (size_t i = 0; i < temp_files.size(); i++) unlink(temp_files[i].c_str());
     double elapsed = now_sec() - t0;
-    fprintf(stderr, "\n[CREATE] stage2 done sorted %llu hashes in %.1f s\n",
+    fprintf(stderr, "\n[CREATE] stage2 done sorted %llu unique hashes in %.1f s\n",
             (unsigned long long)written, elapsed);
     return 0;
 }
+
 static int stage_write_idx_full(uint8_t *map, uint64_t n, size_t sz) {
     FILE *fidx = fopen(IDX_FILE, "wb");
     if (!fidx) {
@@ -416,7 +433,7 @@ static int stage_write_idx_full(uint8_t *map, uint64_t n, size_t sz) {
         if ((i & 0xFFFFF) == 0) {
             double now = now_sec();
             if (now - last_print >= 1.0) {
-fprintf(stderr, "\r[CREATE] stage3 idx %llu / %llu      ",
+                fprintf(stderr, "\r[CREATE] stage3 idx %llu / %llu      ",
                         (unsigned long long)i, (unsigned long long)n);
                 fflush(stderr);
                 last_print = now;
@@ -434,6 +451,7 @@ fprintf(stderr, "\r[CREATE] stage3 idx %llu / %llu      ",
     (void)sz;
     return 0;
 }
+
 static int stage_write_idx_sparse(uint8_t *map, uint64_t n) {
     FILE *fidx = fopen(IDX_FILE, "wb");
     if (!fidx) {
@@ -484,6 +502,7 @@ static int stage_write_idx_sparse(uint8_t *map, uint64_t n) {
     print_size("BTC.idx", idx_bytes);
     return 0;
 }
+
 static int stage_write_idx(void) {
     int fd = open(BIN_FILE, O_RDONLY);
     if (fd < 0) {
@@ -517,6 +536,7 @@ static int stage_write_idx(void) {
     close(fd);
     return r;
 }
+
 static int stage_write_xor(void) {
     int fd_bin = open(BIN_FILE, O_RDONLY);
     if (fd_bin < 0) {
@@ -545,7 +565,7 @@ static int stage_write_xor(void) {
     fprintf(stderr, "[CREATE] stage4 building xor filter for %llu hashes\n",
             (unsigned long long)n);
     double t0 = now_sec();
-    int r = xorfilter_build(&xf, map, n, 16);
+    int r = xorfilter_build(&xf, map, n, 8);
     munmap(map, sz);
     close(fd_bin);
     if (r != 0) {
@@ -594,6 +614,7 @@ static int stage_write_xor(void) {
     xorfilter_free(&xf);
     return 0;
 }
+
 int main(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "usage: %s -FILE.hex\n", argv[0]);

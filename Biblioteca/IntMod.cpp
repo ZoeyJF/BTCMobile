@@ -4,7 +4,6 @@
 #include <cstring>
 
 static Int _P("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F");
-static Int _R2o("9D671CD581C69BC5E697F5E45BCD07C6741496C20E7CF878896CF21467D7D140");
 static Int *_O = NULL;
 
 static inline bool gte_256(const uint64_t a[4], const uint64_t b[4]) {
@@ -113,7 +112,7 @@ static inline void reduce_n(uint64_t res[4], const uint64_t r[8], const uint64_t
 
         if (rem[4] > 0 || gte_256(rem, n_words)) {
             bool borrow = sub_256(rem, n_words, rem);
-            rem[4] -= (borrow ? 1 : 0);
+            if (borrow) rem[4]--;
         }
     }
     memcpy(res, rem, 32);
@@ -201,35 +200,18 @@ void Int::ModNeg() {
 
 void Int::ModInv() {
     if (IsZero()) return;
-    Int u(this);
-    Int v(&_P);
-    Int A((uint32_t)1);
-    Int C;
+    Int base(this);
+    Int res((uint32_t)1);
+    Int p_minus_2(&_P);
+    p_minus_2.Sub((uint32_t)2);
 
-    while (!u.IsZero()) {
-        while (u.IsEven()) {
-            u.ShiftR(1);
-            if (A.IsOdd()) {
-                A.Add(&_P);
-            }
-            A.ShiftR(1);
-        }
-        while (v.IsEven()) {
-            v.ShiftR(1);
-            if (C.IsOdd()) {
-                C.Add(&_P);
-            }
-            C.ShiftR(1);
-        }
-        if (u.IsGreaterOrEqual(&v)) {
-            u.Sub(&v);
-            A.ModSub(&C);
-        } else {
-            v.Sub(&u);
-            C.ModSub(&A);
+    for (int i = 255; i >= 0; i--) {
+        res.ModSquareK1(&res);
+        if (p_minus_2.GetBit(i)) {
+            res.ModMulK1(&base);
         }
     }
-    Set(&C);
+    Set(&res);
 }
 
 void Int::ModSqrt() {

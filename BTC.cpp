@@ -243,7 +243,7 @@ static void draw_pure_dots(void) {
         "   .       .          .   .       .                .       .   .",
         "       .        .              .       .",
         "   .       .          .   .                 .",
-        "          .       .        .       .       .        .  ",
+        "          .       .        .       .        .  ",
         "   .       .          .   .                 .",
         "          .       .        .       .",
         "     .             .                .       .",
@@ -881,9 +881,21 @@ static void report_hit(const uint8_t *hash, Int &priv, Point &pub, const char *c
 static void process_pub(Point &pub, Int &priv, int subrange_id, int thread_id) {
     if (!g_secp) return;
     uint8_t h160_btc_c[HASH160_LEN];
+    uint8_t h160_eth[HASH160_LEN];
 
     g_secp->GetHash160(P2PKH, true, pub, h160_btc_c);
-    g_derive_count.fetch_add(1);
+
+    unsigned char pub_bytes[64];
+    pub.x.Get32Bytes(pub_bytes);
+    pub.y.Get32Bytes(pub_bytes + 32);
+    SHA3_256_CTX ctx_keccak;
+    KECCAK_256_Init(&ctx_keccak);
+    KECCAK_256_Update(&ctx_keccak, pub_bytes, 64);
+    unsigned char keccak_out[32];
+    KECCAK_256_Final(keccak_out, &ctx_keccak);
+    memcpy(h160_eth, keccak_out + 12, 20);
+
+    g_derive_count.fetch_add(2);
 
     if (xor_query(h160_btc_c)) {
         if (bin_search(h160_btc_c)) {
@@ -891,26 +903,13 @@ static void process_pub(Point &pub, Int &priv, int subrange_id, int thread_id) {
         } else {
             g_xor_fp.fetch_add(1);
         }
+    }
 
-        unsigned char pub_bytes[64];
-        pub.x.Get32Bytes(pub_bytes);
-        pub.y.Get32Bytes(pub_bytes + 32);
-        SHA3_256_CTX ctx_keccak;
-        KECCAK_256_Init(&ctx_keccak);
-        KECCAK_256_Update(&ctx_keccak, pub_bytes, 64);
-        unsigned char keccak_out[32];
-        KECCAK_256_Final(keccak_out, &ctx_keccak);
-
-        uint8_t h160_eth[HASH160_LEN];
-        memcpy(h160_eth, keccak_out + 12, 20);
-        g_derive_count.fetch_add(1);
-
-        if (xor_query(h160_eth)) {
-            if (bin_search(h160_eth)) {
-                report_hit(h160_eth, priv, pub, "ETH", subrange_id, thread_id);
-            } else {
-                g_xor_fp.fetch_add(1);
-            }
+    if (xor_query(h160_eth)) {
+        if (bin_search(h160_eth)) {
+            report_hit(h160_eth, priv, pub, "ETH", subrange_id, thread_id);
+        } else {
+            g_xor_fp.fetch_add(1);
         }
     }
 }

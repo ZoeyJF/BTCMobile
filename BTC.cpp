@@ -550,8 +550,8 @@ static void autotest(void) {
 
     const char* expected[3] = {
         "751e76e8199196d454941c45d1b3a323f1433bd6",
-        "d087b618e9cd627c2e7c5f593aeaa20b2af89a0f",
-        "5a7dba622da59305ae1f5bb733d034d7c045c924"
+        "06afd46bcdfd22ef94ac122aa11f241244a37ecc",
+        "7dd65592d0ab2fe0d0257d571abf032cd9db93dc"
     };
 
     for (int k = 1; k <= 3; k++) {
@@ -565,8 +565,8 @@ static void autotest(void) {
         char hex[48];
         hash_to_hex(h160, hex);
 
-        if (strcmp(hex, expected[k - 1]) != 0 && strcmp(hex, "06afd46bcdfd22ef94ac122aa11f241244a37ecc") != 0 && strcmp(hex, "7dd65592d0ab2fe0d0257d571abf032cd9db93dc") != 0) {
-            fprintf(stderr, "AUTOTEST FAILED en k=%d\n", k);
+        if (strcmp(hex, expected[k - 1]) != 0) {
+            fprintf(stderr, "AUTOTEST FAILED at k=%d\n", k);
             exit(1);
         }
     }

@@ -119,8 +119,8 @@ static inline void reduce_n(uint64_t res[4], const uint64_t r[8], const uint64_t
 }
 
 void Int::ModAdd(Int *a) {
-    add_256(bits, a->bits, bits);
-    if (gte_256(bits, _P.bits)) {
+    bool carry = add_256(bits, a->bits, bits);
+    if (carry || gte_256(bits, _P.bits)) {
         sub_256(bits, _P.bits, bits);
     }
 }
@@ -131,8 +131,8 @@ void Int::ModAdd(uint32_t a) {
 }
 
 void Int::ModAdd(Int *a, Int *b) {
-    add_256(a->bits, b->bits, bits);
-    if (gte_256(bits, _P.bits)) {
+    bool carry = add_256(a->bits, b->bits, bits);
+    if (carry || gte_256(bits, _P.bits)) {
         sub_256(bits, _P.bits, bits);
     }
 }

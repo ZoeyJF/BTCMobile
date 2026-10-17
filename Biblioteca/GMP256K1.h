@@ -20,7 +20,8 @@ public:
 	Point Negation(Point &p);
 	Point NextKey(Point &key);
 	Point ScalarMultiplication(Point &P, Int *scalar);
-	Point GTable[256 * 32];
+	Point ScalarMultiplicationGLV(Int *scalar);
+	Point GTable[64 * 16];
 	bool EC(Point &p);
 	Int GetY(Int x, bool isEven);
 	Point ComputePublicKey(Int *privKey);

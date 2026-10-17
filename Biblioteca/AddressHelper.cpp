@@ -7,13 +7,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstdint>
+#include <vector>
+
 static const char *B58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 static const char *BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
+
 static void base58_encode(const unsigned char *in, size_t inlen, char *out, size_t outsize) {
     size_t zeros = 0;
     while (zeros < inlen && in[zeros] == 0) zeros++;
     size_t size = (inlen - zeros) * 138 / 100 + 1;
-    unsigned char *buf = (unsigned char*)calloc(size, 1);
+    std::vector<unsigned char> buf(size, 0);
     size_t high = size - 1;
     for (size_t i = zeros; i < inlen; i++) {
         int carry = in[i];
@@ -32,8 +35,8 @@ static void base58_encode(const unsigned char *in, size_t inlen, char *out, size
     for (size_t i = 0; i < zeros && k + 1 < outsize; i++) out[k++] = '1';
     for (; j < size && k + 1 < outsize; j++) out[k++] = B58[buf[j]];
     out[k] = 0;
-    free(buf);
 }
+
 static void btc_p2pkh(const unsigned char *h160, unsigned char prefix, char *out, size_t outsize) {
     unsigned char payload[21];
     payload[0] = prefix;
@@ -46,6 +49,7 @@ static void btc_p2pkh(const unsigned char *h160, unsigned char prefix, char *out
     memcpy(full + 21, s2, 4);
     base58_encode(full, 25, out, outsize);
 }
+
 static void btc_p2sh_p2wpkh(const unsigned char *h160, char *out, size_t outsize) {
     unsigned char redeem[22];
     redeem[0] = 0x00;
@@ -55,6 +59,7 @@ static void btc_p2sh_p2wpkh(const unsigned char *h160, char *out, size_t outsize
     sha256(redeem, 22, h);
     btc_p2pkh(h, 0x05, out, outsize);
 }
+
 static uint32_t bech32_polymod_step(uint32_t pre) {
     uint8_t b = pre >> 25;
     return ((pre & 0x1FFFFFF) << 5) ^
@@ -64,6 +69,7 @@ static uint32_t bech32_polymod_step(uint32_t pre) {
         (-((b >> 3) & 1) & 0x3d4233ddUL) ^
         (-((b >> 4) & 1) & 0x2a1462b3UL);
 }
+
 static void bech32_encode(const char *hrp, const uint8_t *data, size_t data_len, char *out, size_t outsize) {
     uint32_t chk_val = 1;
     size_t hrp_len = strlen(hrp);
@@ -83,6 +89,7 @@ static void bech32_encode(const char *hrp, const uint8_t *data, size_t data_len,
     }
     out[k] = 0;
 }
+
 static void convert_bits(const uint8_t *in, size_t inlen, int inbits, int outbits, uint8_t *out, size_t *outlen) {
     uint32_t acc = 0;
     int bits = 0;
@@ -99,6 +106,7 @@ static void convert_bits(const uint8_t *in, size_t inlen, int inbits, int outbit
     if (bits) out[k++] = (acc << (outbits - bits)) & maxv;
     *outlen = k;
 }
+
 static void btc_p2wpkh_bech32(const uint8_t *h160, char *out, size_t outsize) {
     uint8_t data5[64];
     size_t data5len = 0;
@@ -108,6 +116,7 @@ static void btc_p2wpkh_bech32(const uint8_t *h160, char *out, size_t outsize) {
     memcpy(final_data + 1, data5, data5len);
     bech32_encode("bc", final_data, data5len + 1, out, outsize);
 }
+
 static void eth_address_from_pub(const unsigned char *pub64, char *out, size_t outsize) {
     SHA3_256_CTX ctx;
     KECCAK_256_Init(&ctx);
@@ -120,6 +129,7 @@ static void eth_address_from_pub(const unsigned char *pub64, char *out, size_t o
              k[12], k[13], k[14], k[15], k[16], k[17], k[18], k[19], k[20], k[21],
              k[22], k[23], k[24], k[25], k[26], k[27], k[28], k[29], k[30], k[31]);
 }
+
 static void hexify(const unsigned char *in, size_t n, char *out) {
     static const char *hx = "0123456789abcdef";
     for (size_t i = 0; i < n; i++) {
@@ -128,19 +138,23 @@ static void hexify(const unsigned char *in, size_t n, char *out) {
     }
     out[n * 2] = 0;
 }
+
 int derive_all_info(Int &priv, Point &pub, DerivedInfo &out) {
     unsigned char pubc[33];
     pubc[0] = pub.y.IsEven() ? 0x02 : 0x03;
     pub.x.Get32Bytes(pubc + 1);
+
     unsigned char pubu[65];
     pubu[0] = 0x04;
     pub.x.Get32Bytes(pubu + 1);
     pub.y.Get32Bytes(pubu + 33);
+
     unsigned char sha[32], h160c[20], h160u[20];
     sha256(pubc, 33, sha);
     ripemd160(sha, 32, h160c);
     sha256(pubu, 65, sha);
     ripemd160(sha, 32, h160u);
+
     char priv_hex[80];
     memset(priv_hex, '0', 64);
     priv_hex[64] = 0;
@@ -150,12 +164,14 @@ int derive_all_info(Int &priv, Point &pub, DerivedInfo &out) {
         if (len > 0 && len <= 64) memcpy(priv_hex + (64 - len), p, (size_t)len);
         free(p);
     }
+
     char pubc_hex[80];
     char pubu_hex[140];
     char h160c_hex[48];
     hexify(pubc, 33, pubc_hex);
     hexify(pubu, 65, pubu_hex);
     hexify(h160c, 20, h160c_hex);
+
     char addr_c[80];
     char addr_u[80];
     char addr_p2sh[80];
@@ -164,8 +180,10 @@ int derive_all_info(Int &priv, Point &pub, DerivedInfo &out) {
     btc_p2pkh(h160u, 0x00, addr_u, sizeof(addr_u));
     btc_p2sh_p2wpkh(h160c, addr_p2sh, sizeof(addr_p2sh));
     btc_p2wpkh_bech32(h160c, addr_bech, sizeof(addr_bech));
+
     char eth[80];
     eth_address_from_pub(pubu + 1, eth, sizeof(eth));
+
     out.privkey_hex = priv_hex;
     out.pubkey_compressed_hex = pubc_hex;
     out.pubkey_uncompressed_hex = pubu_hex;
@@ -175,8 +193,10 @@ int derive_all_info(Int &priv, Point &pub, DerivedInfo &out) {
     out.btc_p2sh_p2wpkh = addr_p2sh;
     out.btc_p2wpkh_bech32 = addr_bech;
     out.eth_address = eth;
+
     return 0;
 }
+
 void format_extended_entry(const DerivedInfo &info,
                            int range_bits,
                            int subrange_id,

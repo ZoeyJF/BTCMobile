@@ -1,14 +1,18 @@
 #include "IntGroup.h"
+
 IntGroup::IntGroup(int size) {
   this->size = size;
   subp = new Int[size];
 }
+
 IntGroup::~IntGroup() {
   delete[] subp;
 }
+
 void IntGroup::Set(Int *pts) {
   ints = pts;
 }
+
 void IntGroup::ModInv(int count) {
   int n = (count <= 0 || count > size) ? size : count;
   if (n <= 0) return;

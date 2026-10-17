@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <cctype>
+#include <random>
+
 static inline bool gte_256_words(const uint64_t a[4], const uint64_t b[4]) {
     for (int i = 3; i >= 0; i--) {
         if (a[i] > b[i]) return true;
@@ -10,6 +12,7 @@ static inline bool gte_256_words(const uint64_t a[4], const uint64_t b[4]) {
     }
     return true;
 }
+
 static inline bool add_256_words(const uint64_t a[4], const uint64_t b[4], uint64_t res[4]) {
     unsigned __int128 sum = (unsigned __int128)a[0] + b[0];
     res[0] = (uint64_t)sum;
@@ -21,6 +24,7 @@ static inline bool add_256_words(const uint64_t a[4], const uint64_t b[4], uint6
     res[3] = (uint64_t)sum;
     return (bool)(sum >> 64);
 }
+
 static inline bool sub_256_words(const uint64_t a[4], const uint64_t b[4], uint64_t res[4]) {
     unsigned __int128 diff = (unsigned __int128)a[0] - b[0];
     res[0] = (uint64_t)diff;
@@ -32,6 +36,7 @@ static inline bool sub_256_words(const uint64_t a[4], const uint64_t b[4], uint6
     res[3] = (uint64_t)diff;
     return (bool)(diff >> 127);
 }
+
 static inline void shiftl_256_words(uint64_t a[4], uint32_t n) {
     if (n == 0) return;
     if (n >= 256) {
@@ -53,6 +58,7 @@ static inline void shiftl_256_words(uint64_t a[4], uint32_t n) {
     }
     memcpy(a, res, 32);
 }
+
 static inline void shiftr_256_words(uint64_t a[4], uint32_t n) {
     if (n == 0) return;
     if (n >= 256) {
@@ -74,6 +80,7 @@ static inline void shiftr_256_words(uint64_t a[4], uint32_t n) {
     }
     memcpy(a, res, 32);
 }
+
 static inline void div_256_words(const uint64_t num[4], const uint64_t den[4], uint64_t quo[4], uint64_t rem[4]) {
     uint64_t q[4] = {0};
     uint64_t r[4] = {0};
@@ -95,59 +102,74 @@ static inline void div_256_words(const uint64_t num[4], const uint64_t den[4], u
     if (quo) memcpy(quo, q, 32);
     if (rem) memcpy(rem, r, 32);
 }
+
 Int::Int() {
 	memset(bits, 0, sizeof(bits));
 }
+
 Int::Int(const int32_t i32) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = (uint64_t)i32;
 }
+
 Int::Int(const uint32_t u32) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = (uint64_t)u32;
 }
+
 Int::Int(const Int *other) {
 	if (other) memcpy(bits, other->bits, sizeof(bits));
 	else memset(bits, 0, sizeof(bits));
 }
+
 Int::Int(const char *str) {
 	memset(bits, 0, sizeof(bits));
 	if (str) Set(str);
 }
+
 Int::Int(const uint64_t u64) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = u64;
 }
+
 Int::Int(const int64_t i64) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = (uint64_t)i64;
 }
+
 Int::Int(const Int &value) {
 	memcpy(bits, value.bits, sizeof(bits));
 }
+
 Int::~Int() {
 }
+
 Int& Int::operator=(const Int& other) {
 	if (this != &other) {
 		memcpy(bits, other.bits, sizeof(bits));
 	}
 	return *this;
 }
+
 void Int::CLEAR() {
 	memset(bits, 0, sizeof(bits));
 }
+
 void Int::SetInt64(const uint64_t value) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = value;
 }
+
 void Int::SetInt32(const uint32_t value) {
 	memset(bits, 0, sizeof(bits));
 	bits[0] = (uint64_t)value;
 }
+
 void Int::Set(const Int* other) {
 	if (other) memcpy(bits, other->bits, sizeof(bits));
 	else memset(bits, 0, sizeof(bits));
 }
+
 void Int::Set(const char *str) {
 	if (!str || !*str) { CLEAR(); return; }
 	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) {
@@ -156,6 +178,7 @@ void Int::Set(const char *str) {
 		SetBase16(str);
 	}
 }
+
 void Int::SetBase10(const char *str) {
 	CLEAR();
 	if (!str) return;
@@ -167,20 +190,21 @@ void Int::SetBase10(const char *str) {
 		}
 	}
 }
+
 static uint8_t hex_val(char c) {
 	if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
 	if (c >= 'a' && c <= 'f') return (uint8_t)(c - 'a' + 10);
 	if (c >= 'A' && c <= 'F') return (uint8_t)(c - 'A' + 10);
 	return 0;
 }
+
 void Int::SetBase16(const char *str) {
 	CLEAR();
 	if (!str) return;
 	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X')) str += 2;
 	int len = (int)strlen(str);
 	if (len > 64) {
-		fprintf(stderr, "error: hex string exceeds 64 characters\n");
-		exit(1);
+		return;
 	}
 	if (len == 0) return;
 	unsigned char bytes[32] = {0};
@@ -192,37 +216,47 @@ void Int::SetBase16(const char *str) {
 	}
 	Set32Bytes(bytes);
 }
+
 void Int::Add(const uint64_t u64) {
 	uint64_t b[4] = {u64, 0, 0, 0};
 	add_256_words(bits, b, bits);
 }
+
 void Int::Add(const uint32_t u32) {
 	uint64_t b[4] = {(uint64_t)u32, 0, 0, 0};
 	add_256_words(bits, b, bits);
 }
+
 void Int::Add(const Int *a) {
 	add_256_words(bits, a->bits, bits);
 }
+
 void Int::Add(const Int *a, const Int *b) {
 	add_256_words(a->bits, b->bits, bits);
 }
+
 void Int::AddOne() {
 	Add((uint32_t)1);
 }
+
 void Int::Sub(const uint32_t u32) {
 	uint64_t b[4] = {(uint64_t)u32, 0, 0, 0};
 	sub_256_words(bits, b, bits);
 }
+
 void Int::Sub(const uint64_t u64) {
 	uint64_t b[4] = {u64, 0, 0, 0};
 	sub_256_words(bits, b, bits);
 }
+
 void Int::Sub(Int *a) {
 	sub_256_words(bits, a->bits, bits);
 }
+
 void Int::Sub(Int *a, Int *b) {
 	sub_256_words(a->bits, b->bits, bits);
 }
+
 void Int::Mult(Int *a) {
 	uint64_t res[8] = {0};
 	for (int i = 0; i < 4; i++) {
@@ -236,6 +270,7 @@ void Int::Mult(Int *a) {
 	}
 	memcpy(bits, res, 32);
 }
+
 void Int::Mult(uint64_t u64) {
 	unsigned __int128 carry = 0;
 	for (int i = 0; i < 4; i++) {
@@ -243,20 +278,20 @@ void Int::Mult(uint64_t u64) {
 		bits[i] = (uint64_t)prod;
 		carry = prod >> 64;
 	}
-	if (carry > 0) {
-		fprintf(stderr, "error: 256-bit overflow in Mult\n");
-		exit(1);
-	}
 }
+
 void Int::IMult(int64_t i64) {
 	Mult((uint64_t)i64);
 }
+
 void Int::Neg() {
 	uint64_t zero[4] = {0};
 	sub_256_words(zero, bits, bits);
 }
+
 void Int::Abs() {
 }
+
 bool Int::IsGreater(Int *a) {
 	for (int i = 3; i >= 0; i--) {
 		if (bits[i] > a->bits[i]) return true;
@@ -264,6 +299,7 @@ bool Int::IsGreater(Int *a) {
 	}
 	return false;
 }
+
 bool Int::IsGreaterOrEqual(Int *a) {
 	for (int i = 3; i >= 0; i--) {
 		if (bits[i] > a->bits[i]) return true;
@@ -271,6 +307,7 @@ bool Int::IsGreaterOrEqual(Int *a) {
 	}
 	return true;
 }
+
 bool Int::IsLowerOrEqual(Int *a) {
 	for (int i = 3; i >= 0; i--) {
 		if (bits[i] < a->bits[i]) return true;
@@ -278,6 +315,7 @@ bool Int::IsLowerOrEqual(Int *a) {
 	}
 	return true;
 }
+
 bool Int::IsLower(Int *a) {
 	for (int i = 3; i >= 0; i--) {
 		if (bits[i] < a->bits[i]) return true;
@@ -285,31 +323,40 @@ bool Int::IsLower(Int *a) {
 	}
 	return false;
 }
+
 bool Int::IsEqual(Int *a) {
 	return memcmp(bits, a->bits, 32) == 0;
 }
+
 bool Int::IsZero() {
 	return bits[0] == 0 && bits[1] == 0 && bits[2] == 0 && bits[3] == 0;
 }
+
 bool Int::IsOne() {
 	return bits[0] == 1 && bits[1] == 0 && bits[2] == 0 && bits[3] == 0;
 }
+
 bool Int::IsPositive() {
 	return true;
 }
+
 bool Int::IsNegative() {
 	return false;
 }
+
 bool Int::IsEven() {
 	return (bits[0] & 1ULL) == 0;
 }
+
 bool Int::IsOdd() {
 	return (bits[0] & 1ULL) == 1ULL;
 }
+
 int Int::GetSize() {
 	int b = GetBitLength();
 	return (b + 7) / 8;
 }
+
 int Int::GetBitLength() {
 	for (int i = 3; i >= 0; i--) {
 		if (bits[i] != 0) {
@@ -322,26 +369,32 @@ int Int::GetBitLength() {
 	}
 	return 0;
 }
+
 uint64_t Int::GetInt64() {
 	return bits[0];
 }
+
 uint32_t Int::GetInt32() {
 	return (uint32_t)bits[0];
 }
+
 int Int::GetBit(uint32_t n) {
 	if (n >= 256) return 0;
 	return (int)((bits[n / 64] >> (n % 64)) & 1ULL);
 }
+
 void Int::SetBit(uint32_t n) {
 	if (n < 256) {
 		bits[n / 64] |= (1ULL << (n % 64));
 	}
 }
+
 void Int::ClearBit(uint32_t n) {
 	if (n < 256) {
 		bits[n / 64] &= ~(1ULL << (n % 64));
 	}
 }
+
 void Int::Get32Bytes(unsigned char *buff) {
 	if (!buff) return;
 	for (int i = 0; i < 4; i++) {
@@ -356,6 +409,7 @@ void Int::Get32Bytes(unsigned char *buff) {
 		buff[i * 8 + 7] = (unsigned char)(w);
 	}
 }
+
 void Int::Set32Bytes(unsigned char *buff) {
 	if (!buff) return;
 	for (int i = 0; i < 4; i++) {
@@ -371,12 +425,14 @@ void Int::Set32Bytes(unsigned char *buff) {
 		bits[3 - i] = w;
 	}
 }
+
 unsigned char Int::GetByte(int n) {
 	if (n < 0 || n >= 32) return 0;
 	unsigned char buf[32];
 	Get32Bytes(buf);
 	return buf[n];
 }
+
 char* Int::GetBase2() {
 	char *res = (char*)malloc(257);
 	if (!res) return NULL;
@@ -392,6 +448,7 @@ char* Int::GetBase2() {
 	res[len] = 0;
 	return res;
 }
+
 char* Int::GetBase10() {
 	char *res = (char*)malloc(80);
 	if (!res) return NULL;
@@ -420,6 +477,7 @@ char* Int::GetBase10() {
 	}
 	return res;
 }
+
 char* Int::GetBase16() {
 	char *res = (char*)malloc(65);
 	if (!res) return NULL;
@@ -440,12 +498,15 @@ char* Int::GetBase16() {
 	res[j] = 0;
 	return res;
 }
+
 void Int::ShiftL(uint32_t n) {
 	shiftl_256_words(bits, n);
 }
+
 void Int::ShiftR(uint32_t n) {
 	shiftr_256_words(bits, n);
 }
+
 void Int::Div(Int *a, Int *mod) {
 	if (!a || a->IsZero()) {
 		CLEAR();
@@ -458,9 +519,44 @@ void Int::Div(Int *a, Int *mod) {
 	memcpy(bits, q, 32);
 	if (mod) memcpy(mod->bits, r, 32);
 }
+
 void Int::Mod(Int *a) {
 	if (!a || a->IsZero()) return;
 	uint64_t r[4] = {0};
 	div_256_words(bits, a->bits, NULL, r);
 	memcpy(bits, r, 32);
+}
+
+void Int::Rand(int nbit) {
+	CLEAR();
+	if (nbit <= 0) return;
+	if (nbit > 256) nbit = 256;
+	static thread_local std::mt19937_64 rng(std::random_device{}());
+	for (int i = 0; i < 4; i++) {
+		if (nbit >= 64) {
+			bits[i] = rng();
+			nbit -= 64;
+		} else if (nbit > 0) {
+			uint64_t mask = (1ULL << nbit) - 1ULL;
+			bits[i] = rng() & mask;
+			nbit = 0;
+		}
+	}
+}
+
+void Int::Rand(Int *min, Int *max) {
+	if (!min || !max) return;
+	if (min->IsEqual(max)) {
+		Set(min);
+		return;
+	}
+	Int range(max);
+	range.Sub(min);
+	int range_bits = range.GetBitLength();
+	Int r;
+	do {
+		r.Rand(range_bits);
+	} while (r.IsGreater(&range));
+	r.Add(min);
+	Set(&r);
 }

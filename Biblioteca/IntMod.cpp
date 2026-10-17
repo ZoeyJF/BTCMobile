@@ -47,7 +47,7 @@ static inline void mul_256_512(const uint64_t a[4], const uint64_t b[4], uint64_
             res[i + j] = (uint64_t)prod;
             carry = prod >> 64;
         }
-        res[i + 4] = (uint64_t)carry;
+        res[i + 4] += (uint64_t)carry;
     }
 }
 

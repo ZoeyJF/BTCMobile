@@ -40,6 +40,8 @@
 #include "Secp256k1/util.h"
 #include "Secp256k1/Random.h"
 
+#define CPU_GRP_SIZE 1024
+
 enum IdxFormat {
     IDX_UNKNOWN = 0,
     IDX_FULL = 1,
@@ -78,7 +80,12 @@ static bool g_all_ranges = false;
 
 static uint8_t g_start_key[32];
 static uint8_t g_end_key[32];
-static Point g_inc_point; 
+static Point g_inc_point;
+
+static std::vector<Point> g_Gn;
+static Point g_2Gn;
+static Int g_stride;
+static Int g_lambda, g_lambda2, g_beta, g_beta2;
 
 static const char *ORDER_HEX = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
 static const char *BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
@@ -121,7 +128,7 @@ static void set_order_value(uint8_t *a) {
 static void initialize_range(int bits) {
     if (bits <= 0) bits = 1;
     if (bits > 256) bits = 256;
-    
+
     if (bits == 256) {
         set_power_of_two(g_start_key, 255);
         set_order_value(g_end_key);
@@ -161,7 +168,7 @@ static std::string format_comma(unsigned long long x) {
 }
 
 static std::string superscript_digit(int d) {
-    static const char *supers[] = {"⁰", "¹", "²", "³", "⁴", "⁵", "⁶", "", "⁸", ""};
+    static const char *supers[] = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
     return supers[d % 10];
 }
 
@@ -179,20 +186,6 @@ static void utc_timestamp(char *buf, size_t len) {
     struct tm tm_info;
     gmtime_r(&t, &tm_info);
     strftime(buf, len, "%Y-%m-%d %H:%M:%S UTC", &tm_info);
-}
-
-static void print_line_dots() {
-    fputs("-|<.>", stdout);
-    for (int i = 0; i < 75; i++) fputc('.', stdout);
-    fputc('\n', stdout);
-}
-
-static void print_separator_short() {
-    fputs("------------------------------------\n", stdout);
-}
-
-static void print_separator_long() {
-    fputs("-------------------------------------\n", stdout);
 }
 
 static void sha256_double(const uint8_t *in, size_t len, uint8_t *out) {
@@ -298,7 +291,7 @@ static void generate_eth_address(const uint8_t *pub_uncompressed_xy, char *out, 
     KECCAK_256_Init(&ctx);
     KECCAK_256_Update(&ctx, pub_uncompressed_xy, 64);
     KECCAK_256_Final(hash, &ctx);
-    
+
     if (outsize < 43) { out[0] = 0; return; }
     size_t pos = 0;
     out[pos++] = '0';
@@ -316,11 +309,69 @@ static void bytes_to_int_obj(const uint8_t *bytes, Int &obj) {
     obj.SetBase16(hex);
 }
 
+static void int_obj_to_bytes(Int &obj, uint8_t *bytes) {
+    obj.Get32Bytes((unsigned char*)bytes);
+}
+
+static void build_increment_points() {
+    Point addend;
+    Point acc;
+    bool has_acc = false;
+    int t = g_num_threads;
+    addend.Set(g_secp->G);
+
+    while (t > 0) {
+        if (t & 1) {
+            if (!has_acc) {
+                acc.Set(addend);
+                has_acc = true;
+            } else {
+                Point s = g_secp->AddDirect(acc, addend);
+                acc.Set(s);
+            }
+        }
+        t >>= 1;
+        if (t > 0) {
+            Point d = g_secp->DoubleDirect(addend);
+            addend.Set(d);
+        }
+    }
+    if (has_acc) {
+        g_inc_point.Set(acc);
+    } else {
+        g_inc_point.Clear();
+    }
+}
+
+static void init_generator() {
+    g_stride.SetInt32(1);
+    Point G = g_secp->ComputePublicKey(&g_stride);
+    Point g;
+    g.Set(G);
+    g_Gn.reserve(CPU_GRP_SIZE / 2);
+    g_Gn.resize(CPU_GRP_SIZE / 2);
+    g_Gn[0] = g;
+    g = g_secp->DoubleDirect(g);
+    g_Gn[1] = g;
+    for (int i = 2; i < CPU_GRP_SIZE / 2; i++) {
+        g = g_secp->AddDirect(g, G);
+        g_Gn[i] = g;
+    }
+    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2 - 1]);
+}
+
+static void init_endomorphism() {
+    g_lambda.SetBase16("5363ad4cc05c30e0a5261c028812645a122e22ea20816678df02967c1b23bd72");
+    g_lambda2.SetBase16("ac9c52b33fa3cf1f5ad9e3fd77ed9ba4a880b9fc8ec739c2e0cfc810b51283ce");
+    g_beta.SetBase16("7ae96a2b657c07106e64479eac3434e99cf0497512f58995c1396c28719501ee");
+    g_beta2.SetBase16("851695d49a83f8ef919bb86153cbcb16630fb68aed0a766a3ec693d68e6afa40");
+}
+
 static int ask_storage_choice(const char *filename) {
     printf("[INFO] Select storage for %s : [1] RAM  [2] Disk MMAP\n", filename);
     printf("Choice [1-2]: ");
     int choice = 0;
-    scanf("%d", &choice);
+    if (scanf("%d", &choice) != 1) choice = 1;
     if (choice < 1 || choice > 2) choice = 1;
     return choice;
 }
@@ -329,7 +380,7 @@ static void init_memory_loading() {
     g_mem_mode_bin = ask_storage_choice(BIN_FILE);
     g_mem_mode_idx = ask_storage_choice(IDX_FILE);
     g_mem_mode_xor = ask_storage_choice(XOR_FILE);
-    
+
     printf("\n[INFO] Storage modes selected:\n");
     printf("[INFO] BTC.bin : %s\n", g_mem_mode_bin == 1 ? "RAM" : "MMAP");
     printf("[INFO] BTC.idx : %s\n", g_mem_mode_idx == 1 ? "RAM" : "MMAP");
@@ -342,11 +393,11 @@ static int load_database_files() {
         fprintf(stderr, "[ERROR] Cannot find %s\n", IDX_FILE);
         return -1;
     }
-    
+
     size_t size_idx = st.st_size;
     bool div_28 = (size_idx % 28 == 0);
     bool div_24 = (size_idx % 24 == 0);
-    
+
     if (div_28 && !div_24) {
         g_idx_format = IDX_FULL;
     } else if (div_24 && !div_28) {
@@ -407,10 +458,10 @@ static int load_database_files() {
             btc_free_idx(&g_idx);
             return -1;
         }
-        
+
         uint64_t fp_bytes = hdr.array_length;
         size_t total_size = sizeof(xor_header_t) + fp_bytes;
-        
+
         uint8_t *full_map = (uint8_t*)mmap(NULL, total_size, PROT_READ, MAP_PRIVATE, fd, 0);
         close(fd);
         if (full_map == MAP_FAILED) {
@@ -418,7 +469,7 @@ static int load_database_files() {
              btc_free_idx(&g_idx);
              return -1;
         }
-        
+
         g_xorf.fingerprints = full_map + sizeof(xor_header_t);
         g_xorf.seed = hdr.seed;
         g_xorf.block_length = hdr.block_length;
@@ -437,7 +488,7 @@ static int load_database_files() {
             btc_free_idx(&g_idx);
             return -1;
         }
-        
+
         fseek(g_bin_file, 0, SEEK_END);
         g_bin_size = ftell(g_bin_file);
         fseek(g_bin_file, 0, SEEK_SET);
@@ -461,15 +512,15 @@ static int load_database_files() {
              return -1;
         }
     }
-    
+
     if (g_idx.count == 0) {
          fprintf(stderr, "[ERROR] Empty index\n");
          return -1;
     }
-    
+
     uint8_t test_hash[HASH160_LEN];
     uint64_t test_rec_idx = 0;
-    
+
     if (g_idx_format == IDX_FULL) {
         memcpy(test_hash, g_idx.records[0].hash, HASH160_LEN);
         test_rec_idx = g_idx.records[0].record_index;
@@ -478,10 +529,10 @@ static int load_database_files() {
         memcpy(test_hash, sparse_recs[0].hash, HASH160_LEN);
         test_rec_idx = sparse_recs[0].record_index;
     }
-    
+
     uint8_t stored_hash[HASH160_LEN];
     bool confirmed = false;
-    
+
     if (g_mem_mode_bin == 2) {
         if (test_rec_idx * HASH160_LEN < g_bin_size) {
             memcpy(stored_hash, g_bin_map + (test_rec_idx * HASH160_LEN), HASH160_LEN);
@@ -494,7 +545,7 @@ static int load_database_files() {
             confirmed = (memcmp(stored_hash, test_hash, HASH160_LEN) == 0);
         }
     }
-    
+
     if (!confirmed) {
         char hex_test[41], hex_stored[41];
         for(int i=0;i<20;i++) sprintf(hex_test+i*2,"%02x",test_hash[i]);
@@ -503,95 +554,65 @@ static int load_database_files() {
         fprintf(stderr, "Expected: %s\nFound:    %s\n", hex_test, hex_stored);
         return -1;
     }
-    
-    fprintf(stderr, "[INFO] Formato %s verificado: %llu entradas, %zu bytes bin\n", 
-            g_idx_format == IDX_FULL ? "FULL" : "SPARSE", 
+
+    fprintf(stderr, "[INFO] Formato %s verificado: %llu entradas, %zu bytes bin\n",
+            g_idx_format == IDX_FULL ? "FULL" : "SPARSE",
             g_idx.count, g_bin_size);
-            
+
     return 0;
-}
-
-static void build_increment_points() {
-    Point addend;
-    Point acc;
-    bool has_acc = false;
-    int t = g_num_threads;
-    addend.Set(g_secp->G);
-
-    while (t > 0) {
-        if (t & 1) {
-            if (!has_acc) {
-                acc.Set(addend);
-                has_acc = true;
-            } else {
-                Point s = g_secp->AddDirect(acc, addend);
-                acc.Set(s);
-            }
-        }
-        t >>= 1;
-        if (t > 0) {
-            Point d = g_secp->DoubleDirect(addend);
-            addend.Set(d);
-        }
-    }
-    if (has_acc) {
-        g_inc_point.Set(acc);
-    } else {
-        g_inc_point.Clear();
-    }
 }
 
 static void run_diagnostic_k1() {
     fprintf(stderr, "[DIAG] Testing privkey 1:\n");
-    
+
     uint8_t priv_bytes[32];
     zero_256(priv_bytes);
     priv_bytes[31] = 1;
-    
+
     Int k_int;
     bytes_to_int_obj(priv_bytes, k_int);
-    
+
     Point pub = g_secp->ComputePublicKey(&k_int);
-    
+
     uint8_t h160_comp[20];
     uint8_t h160_unc[20];
-    
+
     g_secp->GetHash160(P2PKH, true, pub, h160_comp);
     g_secp->GetHash160(P2PKH, false, pub, h160_unc);
-    
+
     char hex_comp[41];
     char hex_unc[41];
     for(int i=0;i<20;i++) sprintf(hex_comp+i*2,"%02x",h160_comp[i]);
     for(int i=0;i<20;i++) sprintf(hex_unc+i*2,"%02x",h160_unc[i]);
     hex_comp[40]=0;
     hex_unc[40]=0;
-    
+
     fprintf(stderr, "[DIAG]   hash160 compressed  : %s\n", hex_comp);
     fprintf(stderr, "[DIAG]   hash160 uncompressed: %s\n", hex_unc);
     fprintf(stderr, "[DIAG]   expected compressed : 751e76e8199196d454941c45d1b3a323f1433bd6\n");
     fprintf(stderr, "[DIAG]   expected uncompressed: 91b24bf9f5288532960ac687abb035127b1d28a5\n");
-    
+
     bool match_comp = (strcmp(hex_comp, "751e76e8199196d454941c45d1b3a323f1433bd6") == 0);
     bool match_unc = (strcmp(hex_unc, "91b24bf9f5288532960ac687abb035127b1d28a5") == 0);
-    
+
     fprintf(stderr, "[DIAG]   match compressed    : %s\n", match_comp ? "yes" : "no");
     fprintf(stderr, "[DIAG]   match uncompressed  : %s\n", match_unc ? "yes" : "no");
-    
+
     if (!match_comp && !match_unc) {
         fprintf(stderr, "[FATAL] BTC.cpp hash160 incorrecto para privkey 1. Abortando.\n");
         exit(1);
     }
-    
+
     bool xor_comp = btc_xor_contains(&g_xorf, h160_comp, HASH160_LEN);
     bool xor_unc = btc_xor_contains(&g_xorf, h160_unc, HASH160_LEN);
-    
+
     fprintf(stderr, "[DIAG]   xor_contains(comp)  : %s\n", xor_comp ? "yes" : "no");
     fprintf(stderr, "[DIAG]   xor_contains(uncomp): %s\n", xor_unc ? "yes" : "no");
-    
+
     uint64_t rec_idx = 0;
     int idx_comp = btc_binary_search_idx(&g_idx, h160_comp, &rec_idx);
     fprintf(stderr, "[DIAG]   idx_lookup(comp)    : %s=%llu / not_found\n", idx_comp==0?"found":"not_found", rec_idx);
-    
+
     idx_comp = btc_binary_search_idx(&g_idx, h160_unc, &rec_idx);
     fprintf(stderr, "[DIAG]   idx_lookup(uncomp)  : %s=%llu / not_found\n", idx_comp==0?"found":"not_found", rec_idx);
 }
@@ -599,18 +620,18 @@ static void run_diagnostic_k1() {
 static void process_hit(const uint8_t priv_bytes[32], Point &current_pub, const uint8_t h160_comp[20], const uint8_t h160_unc[20], int thread_id) {
     char ts[64];
     utc_timestamp(ts, sizeof(ts));
-    
+
     std::lock_guard<std::mutex> lock(g_found_mutex);
     g_found_count.fetch_add(1, std::memory_order_relaxed);
-    
+
     char priv_hex[65];
     for(int i=0;i<32;i++) sprintf(priv_hex+i*2,"%02x",priv_bytes[i]);
     priv_hex[64]=0;
-    
+
     char h160_comp_hex[41];
     for(int i=0;i<20;i++) sprintf(h160_comp_hex+i*2,"%02x",h160_comp[i]);
     h160_comp_hex[40]=0;
-    
+
     char h160_unc_hex[41];
     for(int i=0;i<20;i++) sprintf(h160_unc_hex+i*2,"%02x",h160_unc[i]);
     h160_unc_hex[40]=0;
@@ -619,19 +640,20 @@ static void process_hit(const uint8_t priv_bytes[32], Point &current_pub, const 
     char pub_unc[132];
     g_secp->GetPublicKeyHex(true, current_pub, pub_comp);
     g_secp->GetPublicKeyHex(false, current_pub, pub_unc);
-    
+
     char addr_c[64], addr_u[64], addr_sh[64], addr_be[128], addr_eth[64];
     generate_base58_check(h160_comp, 0x00, addr_c, sizeof(addr_c));
-    
-     uint8_t redeem[22];
+    generate_base58_check(h160_unc, 0x00, addr_u, sizeof(addr_u));
+
+    uint8_t redeem[22];
     redeem[0]=0x00; redeem[1]=0x14; memcpy(redeem+2,h160_comp,20);
     uint8_t sh32[32], sh20[20];
     sha256(redeem, 22, sh32);
     ripemd160(sh32, 32, sh20);
     generate_base58_check(sh20, 0x05, addr_sh, sizeof(addr_sh));
-    
+
     generate_bech32_p2wpkh(h160_comp, addr_be, sizeof(addr_be));
-    
+
     unsigned char raw_pub[65];
     g_secp->GetPublicKeyRaw(false, current_pub, (char*)raw_pub);
     generate_eth_address(raw_pub+1, addr_eth, sizeof(addr_eth));
@@ -653,7 +675,7 @@ static void process_hit(const uint8_t priv_bytes[32], Point &current_pub, const 
     oss << "-|<.>.Subrange : " << thread_id << " >\n";
     oss << "-|<.>.Timestamp : " << ts << " >\n";
     oss << "-|<.>" << std::string(75,'.') << "\n";
-    
+
     g_last_found_msg = oss.str();
     g_found_logs.push_back(g_last_found_msg);
     btc_write_found(priv_hex, h160_comp_hex, g_range_bits, thread_id, ts);
@@ -663,9 +685,9 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
     if (!btc_xor_contains(&g_xorf, h160, HASH160_LEN)) {
         return false;
     }
-    
+
     g_xor_hits.fetch_add(1, std::memory_order_relaxed);
-    
+
     uint64_t record_index = 0;
     int found_in_idx = 0;
 
@@ -678,7 +700,7 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
         uint64_t low = 0;
         uint64_t high = g_idx.count;
         uint64_t best_block = UINT64_MAX;
-        
+
         while (low < high) {
             uint64_t mid = low + (high - low) / 2;
             int cmp = memcmp(sparse_recs[mid].hash, h160, HASH160_LEN);
@@ -689,18 +711,18 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
                 high = mid;
             }
         }
-        
+
         if (best_block != UINT64_MAX) {
             uint32_t start_rec = sparse_recs[best_block].record_index;
             uint32_t end_rec = start_rec + IDX_SPARSE_STRIDE;
             if (end_rec > (uint32_t)(g_bin_size / HASH160_LEN)) {
                 end_rec = (uint32_t)(g_bin_size / HASH160_LEN);
             }
-            
+
             for (uint32_t r = start_rec; r < end_rec; r++) {
                 uint8_t stored_hash[HASH160_LEN];
                 bool match = false;
-                
+
                 if (g_mem_mode_bin == 2) {
                      if (r * HASH160_LEN < g_bin_size) {
                          memcpy(stored_hash, g_bin_map + (r * HASH160_LEN), HASH160_LEN);
@@ -713,7 +735,7 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
                          match = (memcmp(stored_hash, h160, HASH160_LEN) == 0);
                      }
                 }
-                
+
                 if (match) {
                     record_index = r;
                     found_in_idx = 1;
@@ -722,13 +744,109 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
             }
         }
     }
-    
+
     if (found_in_idx > 0) {
         *rec_idx_out = record_index;
         return true;
     }
-    
+
     return false;
+}
+
+static void handle_found_candidate(int type_idx, int offset, Int &group_base_key, const uint8_t cand_h160[20], int thread_id) {
+    Int keyfound;
+    keyfound.SetInt32(offset);
+    keyfound.Mult(&g_stride);
+    keyfound.Add(&group_base_key);
+
+    Point pub_eval = g_secp->ComputePublicKey(&keyfound);
+
+    switch (type_idx) {
+        case 0:
+            if (pub_eval.y.IsOdd()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 1:
+            if (pub_eval.y.IsEven()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 2:
+            keyfound.ModMulK1order(&g_lambda);
+            if (pub_eval.y.IsOdd()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 3:
+            keyfound.ModMulK1order(&g_lambda);
+            if (pub_eval.y.IsEven()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 4:
+            keyfound.ModMulK1order(&g_lambda2);
+            if (pub_eval.y.IsOdd()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 5:
+            keyfound.ModMulK1order(&g_lambda2);
+            if (pub_eval.y.IsEven()) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        case 6:
+        case 7: {
+            uint8_t check_h[20];
+            g_secp->GetHash160(P2PKH, false, pub_eval, check_h);
+            if (memcmp(cand_h160, check_h, 20) != 0) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        }
+        case 8:
+        case 9: {
+            keyfound.ModMulK1order(&g_lambda);
+            Point p_check = g_secp->ComputePublicKey(&keyfound);
+            uint8_t check_h[20];
+            g_secp->GetHash160(P2PKH, false, p_check, check_h);
+            if (memcmp(cand_h160, check_h, 20) != 0) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        }
+        case 10:
+        case 11: {
+            keyfound.ModMulK1order(&g_lambda2);
+            Point p_check = g_secp->ComputePublicKey(&keyfound);
+            uint8_t check_h[20];
+            g_secp->GetHash160(P2PKH, false, p_check, check_h);
+            if (memcmp(cand_h160, check_h, 20) != 0) {
+                keyfound.Neg();
+                keyfound.Add(&g_secp->order);
+            }
+            break;
+        }
+    }
+
+    uint8_t hit_priv_bytes[32];
+    int_obj_to_bytes(keyfound, hit_priv_bytes);
+    Point final_pub = g_secp->ComputePublicKey(&keyfound);
+
+    uint8_t h160_c[20], h160_u[20];
+    g_secp->GetHash160(P2PKH, true, final_pub, h160_c);
+    g_secp->GetHash160(P2PKH, false, final_pub, h160_u);
+
+    process_hit(hit_priv_bytes, final_pub, h160_c, h160_u, thread_id);
 }
 
 static void worker_function(int thread_id) {
@@ -738,26 +856,12 @@ static void worker_function(int thread_id) {
 
     uint8_t priv_bytes[32];
     Int k_int;
-    Point current_pub;
     unsigned long long local_count = 0;
-    
+
     std::mt19937_64 rng((uint64_t)std::chrono::steady_clock::now().time_since_epoch().count() ^ (uint64_t)thread_id);
 
-    if (!g_random_mode) {
-        copy_256(priv_bytes, g_start_key);
-        add_small_uint(priv_bytes, (uint64_t)thread_id);
-        if (cmp_256(priv_bytes, g_end_key) >= 0) {
-            g_threads_done.fetch_add(1, std::memory_order_release);
-            return;
-        }
-        
-        bytes_to_int_obj(priv_bytes, k_int);
-        Point initial = g_secp->ComputePublicKey(&k_int);
-        current_pub.Set(initial);
-    }
-
-    while (!g_stop.load(std::memory_order_relaxed)) {
-        if (g_random_mode) {
+    if (g_random_mode) {
+        while (!g_stop.load(std::memory_order_relaxed)) {
             if (g_range_bits < 256) {
                 int offset_bits = g_range_bits - 1;
                 uint8_t off[32];
@@ -784,53 +888,230 @@ static void worker_function(int thread_id) {
                     for(int i=0;i<32;i++) priv_bytes[i] = (uint8_t)(rng() & 0xFF);
                  } while(cmp_256(priv_bytes, g_start_key)<0 || cmp_256(priv_bytes, g_end_key)>=0);
             }
-            
+
             bytes_to_int_obj(priv_bytes, k_int);
-            Point new_pub = g_secp->ComputePublicKey(&k_int);
-            current_pub.Set(new_pub);
+            Point current_pub = g_secp->ComputePublicKey(&k_int);
+
+            uint8_t h160_comp[20], h160_unc[20];
+            g_secp->GetHash160(P2PKH, true, current_pub, h160_comp);
+            g_secp->GetHash160(P2PKH, false, current_pub, h160_unc);
+
+            uint64_t rec_idx = 0;
+            if (check_and_verify(h160_comp, &rec_idx)) {
+                process_hit(priv_bytes, current_pub, h160_comp, h160_unc, thread_id);
+            } else if (check_and_verify(h160_unc, &rec_idx)) {
+                process_hit(priv_bytes, current_pub, h160_comp, h160_unc, thread_id);
+            }
+
+            local_count++;
+            if (local_count >= 100000) {
+                g_total_keys.fetch_add(local_count, std::memory_order_relaxed);
+                g_thread_counters[thread_id].fetch_add(local_count, std::memory_order_relaxed);
+                local_count = 0;
+            }
+        }
+    } else {
+        copy_256(priv_bytes, g_start_key);
+        add_small_uint(priv_bytes, (uint64_t)thread_id);
+        if (cmp_256(priv_bytes, g_end_key) >= 0) {
+            g_threads_done.fetch_add(1, std::memory_order_release);
+            return;
         }
 
-        uint8_t h160_comp[20];
-        uint8_t h160_unc[20];
-        
-        g_secp->GetHash160(P2PKH, true, current_pub, h160_comp);
-        g_secp->GetHash160(P2PKH, false, current_pub, h160_unc);
-        
-        uint64_t rec_idx = 0;
-        
-        if (check_and_verify(h160_comp, &rec_idx)) {
-            process_hit(priv_bytes, current_pub, h160_comp, h160_unc, thread_id);
-        } else if (check_and_verify(h160_unc, &rec_idx)) {
-            process_hit(priv_bytes, current_pub, h160_comp, h160_unc, thread_id);
-        }
+        Int key_mpz;
+        bytes_to_int_obj(priv_bytes, key_mpz);
 
-        local_count++;
-        if (local_count >= 100000) {
-            g_total_keys.fetch_add(local_count, std::memory_order_relaxed);
-            g_thread_counters[thread_id].fetch_add(local_count, std::memory_order_relaxed);
-            local_count = 0;
-        }
+        Int dx[CPU_GRP_SIZE / 2 + 1];
+        IntGroup grp(CPU_GRP_SIZE / 2 + 1);
+        grp.Set(dx);
 
-        if (!g_random_mode) {
-            add_small_uint(priv_bytes, (uint64_t)g_num_threads);
-            if (cmp_256(priv_bytes, g_end_key) >= 0) break;
-            
-            Point next = g_secp->AddDirect(current_pub, g_inc_point);
-            current_pub.Set(next);
+        Point pts[CPU_GRP_SIZE];
+        Point endo_beta[CPU_GRP_SIZE];
+        Point endo_beta2[CPU_GRP_SIZE];
+        Point endo_neg_pts[4];
+
+        int hLength = CPU_GRP_SIZE / 2 - 1;
+        uint8_t h160_endo[12][4][20];
+
+        Int temp_stride, dy, _s, _p, dyn;
+
+        temp_stride.SetInt32(CPU_GRP_SIZE / 2);
+        temp_stride.Mult(&g_stride);
+        key_mpz.Add(&temp_stride);
+        Point startP = g_secp->ComputePublicKey(&key_mpz);
+        key_mpz.Sub(&temp_stride);
+
+        while (!g_stop.load(std::memory_order_relaxed)) {
+            Int group_base_key = key_mpz;
+
+            int i = 0;
+            for (i = 0; i < hLength; i++) {
+                dx[i].ModSub(&g_Gn[i].x, &startP.x);
+            }
+            dx[i].ModSub(&g_Gn[i].x, &startP.x);
+            dx[i + 1].ModSub(&g_2Gn.x, &startP.x);
+
+            grp.ModInv();
+
+            pts[CPU_GRP_SIZE / 2] = startP;
+
+            for (i = 0; i < hLength; i++) {
+                Point pp = startP;
+                Point pn = startP;
+
+                dy.ModSub(&g_Gn[i].y, &pp.y);
+                _s.ModMulK1(&dy, &dx[i]);
+                _p.ModSquareK1(&_s);
+
+                pp.x.ModNeg();
+                pp.x.ModAdd(&_p);
+                pp.x.ModSub(&g_Gn[i].x);
+
+                pp.y.ModSub(&g_Gn[i].x, &pp.x);
+                pp.y.ModMulK1(&_s);
+                pp.y.ModSub(&g_Gn[i].y);
+
+                dyn.Set(&g_Gn[i].y);
+                dyn.ModNeg();
+                dyn.ModSub(&pn.y);
+
+                _s.ModMulK1(&dyn, &dx[i]);
+                _p.ModSquareK1(&_s);
+
+                pn.x.ModNeg();
+                pn.x.ModAdd(&_p);
+                pn.x.ModSub(&g_Gn[i].x);
+
+                pn.y.ModSub(&g_Gn[i].x, &pn.x);
+                pn.y.ModMulK1(&_s);
+                pn.y.ModAdd(&g_Gn[i].y);
+
+                int pp_offset = CPU_GRP_SIZE / 2 + (i + 1);
+                int pn_offset = CPU_GRP_SIZE / 2 - (i + 1);
+
+                pts[pp_offset] = pp;
+                pts[pn_offset] = pn;
+
+                endo_beta[pp_offset].y.Set(&pp.y);
+                endo_beta[pn_offset].y.Set(&pn.y);
+                endo_beta2[pp_offset].y.Set(&pp.y);
+                endo_beta2[pn_offset].y.Set(&pn.y);
+
+                endo_beta[pp_offset].x.ModMulK1(&pp.x, &g_beta);
+                endo_beta[pn_offset].x.ModMulK1(&pn.x, &g_beta);
+                endo_beta2[pp_offset].x.ModMulK1(&pp.x, &g_beta2);
+                endo_beta2[pn_offset].x.ModMulK1(&pn.x, &g_beta2);
+            }
+
+            endo_beta[CPU_GRP_SIZE / 2].y.Set(&pts[CPU_GRP_SIZE / 2].y);
+            endo_beta2[CPU_GRP_SIZE / 2].y.Set(&pts[CPU_GRP_SIZE / 2].y);
+            endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
+            endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
+
+            Point pn_first = startP;
+            dyn.Set(&g_Gn[i].y);
+            dyn.ModNeg();
+            dyn.ModSub(&pn_first.y);
+
+            _s.ModMulK1(&dyn, &dx[i]);
+            _p.ModSquareK1(&_s);
+
+            pn_first.x.ModNeg();
+            pn_first.x.ModAdd(&_p);
+            pn_first.x.ModSub(&g_Gn[i].x);
+
+            pn_first.y.ModSub(&g_Gn[i].x, &pn_first.x);
+            pn_first.y.ModMulK1(&_s);
+            pn_first.y.ModAdd(&g_Gn[i].y);
+
+            pts[0] = pn_first;
+
+            endo_beta[0].y.Set(&pn_first.y);
+            endo_beta2[0].y.Set(&pn_first.y);
+            endo_beta[0].x.ModMulK1(&pn_first.x, &g_beta);
+            endo_beta2[0].x.ModMulK1(&pn_first.x, &g_beta2);
+
+            for (int j = 0; j < CPU_GRP_SIZE / 4; j++) {
+                int base_idx = j * 4;
+
+                g_secp->GetHash160_fromX(P2PKH, 0x02, &pts[base_idx].x, &pts[base_idx+1].x, &pts[base_idx+2].x, &pts[base_idx+3].x, h160_endo[0][0], h160_endo[0][1], h160_endo[0][2], h160_endo[0][3]);
+                g_secp->GetHash160_fromX(P2PKH, 0x03, &pts[base_idx].x, &pts[base_idx+1].x, &pts[base_idx+2].x, &pts[base_idx+3].x, h160_endo[1][0], h160_endo[1][1], h160_endo[1][2], h160_endo[1][3]);
+
+                g_secp->GetHash160_fromX(P2PKH, 0x02, &endo_beta[base_idx].x, &endo_beta[base_idx+1].x, &endo_beta[base_idx+2].x, &endo_beta[base_idx+3].x, h160_endo[2][0], h160_endo[2][1], h160_endo[2][2], h160_endo[2][3]);
+                g_secp->GetHash160_fromX(P2PKH, 0x03, &endo_beta[base_idx].x, &endo_beta[base_idx+1].x, &endo_beta[base_idx+2].x, &endo_beta[base_idx+3].x, h160_endo[3][0], h160_endo[3][1], h160_endo[3][2], h160_endo[3][3]);
+
+                g_secp->GetHash160_fromX(P2PKH, 0x02, &endo_beta2[base_idx].x, &endo_beta2[base_idx+1].x, &endo_beta2[base_idx+2].x, &endo_beta2[base_idx+3].x, h160_endo[4][0], h160_endo[4][1], h160_endo[4][2], h160_endo[4][3]);
+                g_secp->GetHash160_fromX(P2PKH, 0x03, &endo_beta2[base_idx].x, &endo_beta2[base_idx+1].x, &endo_beta2[base_idx+2].x, &endo_beta2[base_idx+3].x, h160_endo[5][0], h160_endo[5][1], h160_endo[5][2], h160_endo[5][3]);
+
+                for (int l = 0; l < 4; l++) {
+                    endo_neg_pts[l] = g_secp->Negation(pts[base_idx + l]);
+                }
+                g_secp->GetHash160(P2PKH, false, pts[base_idx], pts[base_idx+1], pts[base_idx+2], pts[base_idx+3], h160_endo[6][0], h160_endo[6][1], h160_endo[6][2], h160_endo[6][3]);
+                g_secp->GetHash160(P2PKH, false, endo_neg_pts[0], endo_neg_pts[1], endo_neg_pts[2], endo_neg_pts[3], h160_endo[7][0], h160_endo[7][1], h160_endo[7][2], h160_endo[7][3]);
+
+                for (int l = 0; l < 4; l++) {
+                    endo_neg_pts[l] = g_secp->Negation(endo_beta[base_idx + l]);
+                }
+                g_secp->GetHash160(P2PKH, false, endo_beta[base_idx], endo_beta[base_idx+1], endo_beta[base_idx+2], endo_beta[base_idx+3], h160_endo[8][0], h160_endo[8][1], h160_endo[8][2], h160_endo[8][3]);
+                g_secp->GetHash160(P2PKH, false, endo_neg_pts[0], endo_neg_pts[1], endo_neg_pts[2], endo_neg_pts[3], h160_endo[9][0], h160_endo[9][1], h160_endo[9][2], h160_endo[9][3]);
+
+                for (int l = 0; l < 4; l++) {
+                    endo_neg_pts[l] = g_secp->Negation(endo_beta2[base_idx + l]);
+                }
+                g_secp->GetHash160(P2PKH, false, endo_beta2[base_idx], endo_beta2[base_idx+1], endo_beta2[base_idx+2], endo_beta2[base_idx+3], h160_endo[10][0], h160_endo[10][1], h160_endo[10][2], h160_endo[10][3]);
+                g_secp->GetHash160(P2PKH, false, endo_neg_pts[0], endo_neg_pts[1], endo_neg_pts[2], endo_neg_pts[3], h160_endo[11][0], h160_endo[11][1], h160_endo[11][2], h160_endo[11][3]);
+
+                for (int k = 0; k < 4; k++) {
+                    for (int l = 0; l < 12; l++) {
+                        uint64_t rec_idx = 0;
+                        if (check_and_verify(h160_endo[l][k], &rec_idx)) {
+                            handle_found_candidate(l, base_idx + k, group_base_key, h160_endo[l][k], thread_id);
+                        }
+                    }
+                }
+
+                temp_stride.SetInt32(4);
+                temp_stride.Mult(&g_stride);
+                key_mpz.Add(&temp_stride);
+            }
+
+            local_count += CPU_GRP_SIZE;
+            if (local_count >= 100000) {
+                g_total_keys.fetch_add(local_count, std::memory_order_relaxed);
+                g_thread_counters[thread_id].fetch_add(local_count, std::memory_order_relaxed);
+                local_count = 0;
+            }
+
+            Point next_startP = startP;
+            dy.ModSub(&g_2Gn.y, &next_startP.y);
+            _s.ModMulK1(&dy, &dx[i + 1]);
+            _p.ModSquareK1(&_s);
+
+            next_startP.x.ModNeg();
+            next_startP.x.ModAdd(&_p);
+            next_startP.x.ModSub(&g_2Gn.x);
+
+            next_startP.y.ModSub(&g_2Gn.x, &next_startP.x);
+            next_startP.y.ModMulK1(&_s);
+            next_startP.y.ModSub(&g_2Gn.y);
+
+            startP = next_startP;
+
+            uint8_t cur_bytes[32];
+            int_obj_to_bytes(key_mpz, cur_bytes);
+            if (cmp_256(cur_bytes, g_end_key) >= 0) break;
         }
-        
-        if ((local_count & 1023) == 0 && g_stop.load(std::memory_order_relaxed)) break;
     }
 
     if (local_count) {
         g_total_keys.fetch_add(local_count, std::memory_order_relaxed);
         g_thread_counters[thread_id].fetch_add(local_count, std::memory_order_relaxed);
     }
-    
+
     g_threads_done.fetch_add(1, std::memory_order_release);
 }
 
-   static void render_display(std::vector<unsigned long long> &prev_counts, double elapsed_sec, int current_range_bit) {
+static void render_display(std::vector<unsigned long long> &prev_counts, double elapsed_sec, int current_range_bit) {
     std::ostringstream b;
     char lb[160];
 
@@ -901,8 +1182,8 @@ static void worker_function(int thread_id) {
                 int x = rand() % 100;
                 if (x < 50) b << ' ';
                 else if (x < 80) b << '.';
-                else if (x < 92) b << "•";
-                else b << "●";
+                else if (x < 92) b << "*";
+                else b << "o";
             }
             b << "\n";
         }
@@ -973,66 +1254,66 @@ static void worker_function(int thread_id) {
     }
 
     if (g_display_lines > 0) {
-    char esc[32];
-    snprintf(esc, sizeof(esc), "\033[%dF\033[J", g_display_lines);
-    fputs(esc, stdout);
- }
+        char esc[32];
+        snprintf(esc, sizeof(esc), "\033[%dF\033[J", g_display_lines);
+        fputs(esc, stdout);
+    }
     fputs(out.c_str(), stdout);
     fflush(stdout);
     g_display_lines = new_lines;
 }
 
-    int run_single_range(int bits) {
+int run_single_range(int bits) {
     g_range_bits = bits;
     initialize_range(bits);
-    
+
     g_threads_done.store(0, std::memory_order_relaxed);
     g_thread_counters.reset(new std::atomic<unsigned long long>[g_num_threads]);
     for(int i=0;i<g_num_threads;i++) g_thread_counters[i].store(0);
-    
+
     std::vector<std::thread> workers;
     for(int i=0;i<g_num_threads;i++){
         workers.emplace_back(worker_function, i);
     }
-    
+
     std::vector<unsigned long long> prev_counts(g_num_threads, 0);
     g_display_lines = 0;
     auto last_time = std::chrono::steady_clock::now();
     auto next_render = last_time + std::chrono::seconds(15);
-    
+
     while(!g_stop.load(std::memory_order_relaxed)){
         if (g_threads_done.load(std::memory_order_acquire) == g_num_threads) {
             break;
         }
-        
+
         auto now = std::chrono::steady_clock::now();
         if(now < next_render){
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             continue;
         }
-        
+
         double elapsed = std::chrono::duration<double>(now - last_time).count();
         if(elapsed <= 0.0) elapsed = 15.0;
-        
+
         render_display(prev_counts, elapsed, bits);
-        
+
         last_time = now;
         next_render = now + std::chrono::seconds(15);
     }
-    
+
     for(auto &t : workers){
         if(t.joinable()) t.join();
     }
-    
-    fprintf(stderr, "[OK] Rango %d completado: %llu match(es)\n", bits, g_found_count.load());
-    
+
+    fprintf(stderr, "[OK] Rango %d completado: %llu match(es)\n", bits, (unsigned long long)g_found_count.load());
+
     return 0;
 }
 
 int main(int argc, char **argv) {
     int bits_arg = 0;
     bool mode_specified = false;
-    
+
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-R") == 0 && i + 1 < argc) {
             if (strcasecmp(argv[i+1], "all") == 0) {
@@ -1052,33 +1333,35 @@ int main(int argc, char **argv) {
             g_num_threads = atoi(argv[i] + 1);
         }
     }
-    
+
     if (!mode_specified) {
         g_random_mode = false;
     }
-    
+
     int big, little;
     btc_detect_cores(&g_cpu_cores, &big, &little);
     if (g_cpu_cores < 1) g_cpu_cores = 1;
     if (g_num_threads <= 0) g_num_threads = g_cpu_cores;
     if (g_num_threads > g_cpu_cores) g_num_threads = g_cpu_cores;
-    
+
     g_secp = new Secp256K1();
     g_secp->Init();
     build_increment_points();
-    
+    init_generator();
+    init_endomorphism();
+
     init_memory_loading();
-    
+
     if (load_database_files() != 0) {
         delete g_secp;
         return 1;
     }
-    
+
     run_diagnostic_k1();
-    
+
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
-    
+
     if (g_all_ranges || bits_arg == 0) {
         for (int b = 1; b <= 256; b++) {
             if (g_stop.load(std::memory_order_relaxed)) break;
@@ -1090,12 +1373,11 @@ int main(int argc, char **argv) {
         if (bits_arg > 256) bits_arg = 256;
         run_single_range(bits_arg);
     }
-    
+
     if(g_bin_file) fclose(g_bin_file);
     if(g_bin_map) munmap(g_bin_map, g_bin_size);
-        btc_free_xor(&g_xorf);
+    btc_free_xor(&g_xorf);
     btc_free_idx(&g_idx);
-
 
     delete g_secp;
     return 0;

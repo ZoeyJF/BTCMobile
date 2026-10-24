@@ -753,13 +753,13 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
     return false;
 }
 
-static void handle_found_candidate(int type_idx, int offset, Int &key_mpz, const uint8_t cand_h160[20], int thread_id) {
+static void handle_found_candidate(int type_idx, int offset, Int &group_base_key, const uint8_t cand_h160[20], int thread_id) {
     Int offset_int;
     offset_int.SetInt32(offset);
     offset_int.Mult(&g_stride);
 
     Int key_at_offset;
-    key_at_offset.Set(&key_mpz);
+    key_at_offset.Set(&group_base_key);
     key_at_offset.Add(&offset_int);
 
     Int priv;
@@ -1082,28 +1082,13 @@ static void worker_function(int thread_id) {
             endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
             endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
 
-            Point pn_first = startP;
-            dyn.Set(&g_Gn[i].y);
-            dyn.ModNeg();
-            dyn.ModSub(&pn_first.y);
+            Point neg_g512 = g_secp->Negation(g_Gn[511]);
+            pts[0] = g_secp->AddDirect(startP, neg_g512);
 
-            _s.ModMulK1(&dyn, &dx[i]);
-            _p.ModSquareK1(&_s);
-
-            pn_first.x.ModNeg();
-            pn_first.x.ModAdd(&_p);
-            pn_first.x.ModSub(&g_Gn[i].x);
-
-            pn_first.y.ModSub(&g_Gn[i].x, &pn_first.x);
-            pn_first.y.ModMulK1(&_s);
-            pn_first.y.ModAdd(&g_Gn[i].y);
-
-            pts[0] = pn_first;
-
-            endo_beta[0].y.Set(&pn_first.y);
-            endo_beta2[0].y.Set(&pn_first.y);
-            endo_beta[0].x.ModMulK1(&pn_first.x, &g_beta);
-            endo_beta2[0].x.ModMulK1(&pn_first.x, &g_beta2);
+            endo_beta[0].y.Set(&pts[0].y);
+            endo_beta2[0].y.Set(&pts[0].y);
+            endo_beta[0].x.ModMulK1(&pts[0].x, &g_beta);
+            endo_beta2[0].x.ModMulK1(&pts[0].x, &g_beta2);
 
             for (int j = 0; j < CPU_GRP_SIZE / 4; j++) {
                 int base_idx = j * 4;

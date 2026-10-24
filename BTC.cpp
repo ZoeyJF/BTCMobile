@@ -348,16 +348,16 @@ static void init_generator() {
     Point G = g_secp->ComputePublicKey(&g_stride);
     Point g;
     g.Set(G);
-    g_Gn.reserve(CPU_GRP_SIZE / 2 + 1);
-    g_Gn.resize(CPU_GRP_SIZE / 2 + 1);
+    g_Gn.reserve(CPU_GRP_SIZE / 2);
+    g_Gn.resize(CPU_GRP_SIZE / 2);
     g_Gn[0] = g;
     g = g_secp->DoubleDirect(g);
     g_Gn[1] = g;
-    for (int i = 2; i <= CPU_GRP_SIZE / 2; i++) {
+    for (int i = 2; i < CPU_GRP_SIZE / 2; i++) {
         g = g_secp->AddDirect(g, G);
         g_Gn[i] = g;
     }
-    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2]);
+    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2 - 1]);
 }
 
 static void init_endomorphism() {
@@ -1029,39 +1029,41 @@ static void worker_function(int thread_id) {
 
             pts[CPU_GRP_SIZE / 2] = startP;
 
-            for (i = 0; i < hLength; i++) {
+            for (i = 1; i <= hLength; i++) {
                 Point pp = startP;
                 Point pn = startP;
 
-                dy.ModSub(&g_Gn[i].y, &pp.y);
-                _s.ModMulK1(&dy, &dx[i]);
+                int gn_idx = i - 1;
+
+                dy.ModSub(&g_Gn[gn_idx].y, &pp.y);
+                _s.ModMulK1(&dy, &dx[gn_idx]);
                 _p.ModSquareK1(&_s);
 
                 pp.x.ModNeg();
                 pp.x.ModAdd(&_p);
-                pp.x.ModSub(&g_Gn[i].x);
+                pp.x.ModSub(&g_Gn[gn_idx].x);
 
-                pp.y.ModSub(&g_Gn[i].x, &pp.x);
+                pp.y.ModSub(&g_Gn[gn_idx].x, &pp.x);
                 pp.y.ModMulK1(&_s);
-                pp.y.ModSub(&g_Gn[i].y);
+                pp.y.ModSub(&g_Gn[gn_idx].y);
 
-                dyn.Set(&g_Gn[i].y);
+                dyn.Set(&g_Gn[gn_idx].y);
                 dyn.ModNeg();
                 dyn.ModSub(&pn.y);
 
-                _s.ModMulK1(&dyn, &dx[i]);
+                _s.ModMulK1(&dyn, &dx[gn_idx]);
                 _p.ModSquareK1(&_s);
 
                 pn.x.ModNeg();
                 pn.x.ModAdd(&_p);
-                pn.x.ModSub(&g_Gn[i].x);
+                pn.x.ModSub(&g_Gn[gn_idx].x);
 
-                pn.y.ModSub(&g_Gn[i].x, &pn.x);
+                pn.y.ModSub(&g_Gn[gn_idx].x, &pn.x);
                 pn.y.ModMulK1(&_s);
-                pn.y.ModAdd(&g_Gn[i].y);
+                pn.y.ModAdd(&g_Gn[gn_idx].y);
 
-                int pp_offset = CPU_GRP_SIZE / 2 + (i + 1);
-                int pn_offset = CPU_GRP_SIZE / 2 - (i + 1);
+                int pp_offset = CPU_GRP_SIZE / 2 + i;
+                int pn_offset = CPU_GRP_SIZE / 2 - i;
 
                 pts[pp_offset] = pp;
                 pts[pn_offset] = pn;
@@ -1082,7 +1084,7 @@ static void worker_function(int thread_id) {
             endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
             endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
 
-            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2]);
+            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2 - 1]);
             pts[0] = g_secp->AddDirect(startP, neg_g512);
 
             endo_beta[0].y.Set(&pts[0].y);

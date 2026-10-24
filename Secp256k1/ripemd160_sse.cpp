@@ -17,13 +17,7 @@
 
 #include "ripemd160.h"
 #include <string.h>
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-#include <emmintrin.h>
-#include <tmmintrin.h>
-#include <smmintrin.h>
-#else
 #include "sse2neon.h"
-#endif
 
 // Internal SSE RIPEMD-160 implementation.
 namespace ripemd160sse {

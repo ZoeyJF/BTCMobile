@@ -348,16 +348,16 @@ static void init_generator() {
     Point G = g_secp->ComputePublicKey(&g_stride);
     Point g;
     g.Set(G);
-    g_Gn.reserve(CPU_GRP_SIZE / 2);
-    g_Gn.resize(CPU_GRP_SIZE / 2);
+    g_Gn.reserve(CPU_GRP_SIZE / 2 + 1);
+    g_Gn.resize(CPU_GRP_SIZE / 2 + 1);
     g_Gn[0] = g;
     g = g_secp->DoubleDirect(g);
     g_Gn[1] = g;
-    for (int i = 2; i < CPU_GRP_SIZE / 2; i++) {
+    for (int i = 2; i <= CPU_GRP_SIZE / 2; i++) {
         g = g_secp->AddDirect(g, G);
         g_Gn[i] = g;
     }
-    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2 - 1]);
+    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2]);
 }
 
 static void init_endomorphism() {
@@ -1082,7 +1082,7 @@ static void worker_function(int thread_id) {
             endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
             endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
 
-            Point neg_g512 = g_secp->Negation(g_Gn[511]);
+            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2]);
             pts[0] = g_secp->AddDirect(startP, neg_g512);
 
             endo_beta[0].y.Set(&pts[0].y);

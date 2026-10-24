@@ -1315,7 +1315,7 @@ int main(int argc, char **argv) {
     bool mode_specified = false;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-R") == 0 && i + 1 < argc) {
+        if ((strcmp(argv[i], "-R") == 0 || strcasecmp(argv[i], "R") == 0) && i + 1 < argc) {
             if (strcasecmp(argv[i+1], "all") == 0) {
                 g_all_ranges = true;
             } else {
@@ -1362,7 +1362,7 @@ int main(int argc, char **argv) {
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
 
-    if (g_all_ranges || bits_arg == 0) {
+    if (g_all_ranges) {
         for (int b = 1; b <= 256; b++) {
             if (g_stop.load(std::memory_order_relaxed)) break;
             run_single_range(b);

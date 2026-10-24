@@ -1029,41 +1029,39 @@ static void worker_function(int thread_id) {
 
             pts[CPU_GRP_SIZE / 2] = startP;
 
-            for (i = 1; i <= hLength; i++) {
+            for (i = 0; i < hLength; i++) {
                 Point pp = startP;
                 Point pn = startP;
 
-                int gn_idx = i - 1;
-
-                dy.ModSub(&g_Gn[gn_idx].y, &pp.y);
-                _s.ModMulK1(&dy, &dx[gn_idx]);
+                dy.ModSub(&g_Gn[i].y, &pp.y);
+                _s.ModMulK1(&dy, &dx[i]);
                 _p.ModSquareK1(&_s);
 
                 pp.x.ModNeg();
                 pp.x.ModAdd(&_p);
-                pp.x.ModSub(&g_Gn[gn_idx].x);
+                pp.x.ModSub(&g_Gn[i].x);
 
-                pp.y.ModSub(&g_Gn[gn_idx].x, &pp.x);
+                pp.y.ModSub(&g_Gn[i].x, &pp.x);
                 pp.y.ModMulK1(&_s);
-                pp.y.ModSub(&g_Gn[gn_idx].y);
+                pp.y.ModSub(&g_Gn[i].y);
 
-                dyn.Set(&g_Gn[gn_idx].y);
+                dyn.Set(&g_Gn[i].y);
                 dyn.ModNeg();
                 dyn.ModSub(&pn.y);
 
-                _s.ModMulK1(&dyn, &dx[gn_idx]);
+                _s.ModMulK1(&dyn, &dx[i]);
                 _p.ModSquareK1(&_s);
 
                 pn.x.ModNeg();
                 pn.x.ModAdd(&_p);
-                pn.x.ModSub(&g_Gn[gn_idx].x);
+                pn.x.ModSub(&g_Gn[i].x);
 
-                pn.y.ModSub(&g_Gn[gn_idx].x, &pn.x);
+                pn.y.ModSub(&g_Gn[i].x, &pn.x);
                 pn.y.ModMulK1(&_s);
-                pn.y.ModAdd(&g_Gn[gn_idx].y);
+                pn.y.ModAdd(&g_Gn[i].y);
 
-                int pp_offset = CPU_GRP_SIZE / 2 + i;
-                int pn_offset = CPU_GRP_SIZE / 2 - i;
+                int pp_offset = CPU_GRP_SIZE / 2 + (i + 1);
+                int pn_offset = CPU_GRP_SIZE / 2 - (i + 1);
 
                 pts[pp_offset] = pp;
                 pts[pn_offset] = pn;
@@ -1084,8 +1082,23 @@ static void worker_function(int thread_id) {
             endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
             endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
 
-            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2 - 1]);
-            pts[0] = g_secp->AddDirect(startP, neg_g512);
+            Point pn_first = startP;
+            dyn.Set(&g_Gn[i].y);
+            dyn.ModNeg();
+            dyn.ModSub(&pn_first.y);
+
+            _s.ModMulK1(&dyn, &dx[i]);
+            _p.ModSquareK1(&_s);
+
+            pn_first.x.ModNeg();
+            pn_first.x.ModAdd(&_p);
+            pn_first.x.ModSub(&g_Gn[i].x);
+
+            pn_first.y.ModSub(&g_Gn[i].x, &pn_first.x);
+            pn_first.y.ModMulK1(&_s);
+            pn_first.y.ModAdd(&g_Gn[i].y);
+
+            pts[0] = pn_first;
 
             endo_beta[0].y.Set(&pts[0].y);
             endo_beta2[0].y.Set(&pts[0].y);

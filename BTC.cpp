@@ -348,16 +348,16 @@ static void init_generator() {
     Point G = g_secp->ComputePublicKey(&g_stride);
     Point g;
     g.Set(G);
-    g_Gn.reserve(CPU_GRP_SIZE / 2 + 1);
-    g_Gn.resize(CPU_GRP_SIZE / 2 + 1);
+    g_Gn.reserve(CPU_GRP_SIZE / 2);
+    g_Gn.resize(CPU_GRP_SIZE / 2);
     g_Gn[0] = g;
     g = g_secp->DoubleDirect(g);
     g_Gn[1] = g;
-    for (int i = 2; i <= CPU_GRP_SIZE / 2; i++) {
+    for (int i = 2; i < CPU_GRP_SIZE / 2; i++) {
         g = g_secp->AddDirect(g, G);
         g_Gn[i] = g;
     }
-    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2]);
+    g_2Gn = g_secp->DoubleDirect(g_Gn[CPU_GRP_SIZE / 2 - 1]);
 }
 
 static void init_endomorphism() {
@@ -1082,7 +1082,7 @@ static void worker_function(int thread_id) {
             endo_beta[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta);
             endo_beta2[CPU_GRP_SIZE / 2].x.ModMulK1(&pts[CPU_GRP_SIZE / 2].x, &g_beta2);
 
-            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2]);
+            Point neg_g512 = g_secp->Negation(g_Gn[CPU_GRP_SIZE / 2 - 1]);
             pts[0] = g_secp->AddDirect(startP, neg_g512);
 
             endo_beta[0].y.Set(&pts[0].y);
@@ -1093,14 +1093,14 @@ static void worker_function(int thread_id) {
             for (int j = 0; j < CPU_GRP_SIZE / 4; j++) {
                 int base_idx = j * 4;
 
-                g_secp->GetHash160_fromX(P2PKH, 0x02, &pts[base_idx].x, &pts[base_idx+1].x, &pts[base_idx+2].x, &pts[base_idx+3].x, h160_endo[0][0], h160_endo[0][1], h160_endo[0][2], h160_endo[0][3]);
-                g_secp->GetHash160_fromX(P2PKH, 0x03, &pts[base_idx].x, &pts[base_idx+1].x, &pts[base_idx+2].x, &pts[base_idx+3].x, h160_endo[1][0], h160_endo[1][1], h160_endo[1][2], h160_endo[1][3]);
+                g_secp->GetHash160(P2PKH, true, pts[base_idx], pts[base_idx+1], pts[base_idx+2], pts[base_idx+3], h160_endo[0][0], h160_endo[0][1], h160_endo[0][2], h160_endo[0][3]);
+                g_secp->GetHash160(P2PKH, false, pts[base_idx], pts[base_idx+1], pts[base_idx+2], pts[base_idx+3], h160_endo[1][0], h160_endo[1][1], h160_endo[1][2], h160_endo[1][3]);
 
-                g_secp->GetHash160_fromX(P2PKH, 0x02, &endo_beta[base_idx].x, &endo_beta[base_idx+1].x, &endo_beta[base_idx+2].x, &endo_beta[base_idx+3].x, h160_endo[2][0], h160_endo[2][1], h160_endo[2][2], h160_endo[2][3]);
-                g_secp->GetHash160_fromX(P2PKH, 0x03, &endo_beta[base_idx].x, &endo_beta[base_idx+1].x, &endo_beta[base_idx+2].x, &endo_beta[base_idx+3].x, h160_endo[3][0], h160_endo[3][1], h160_endo[3][2], h160_endo[3][3]);
+                g_secp->GetHash160(P2PKH, true, endo_beta[base_idx], endo_beta[base_idx+1], endo_beta[base_idx+2], endo_beta[base_idx+3], h160_endo[2][0], h160_endo[2][1], h160_endo[2][2], h160_endo[2][3]);
+                g_secp->GetHash160(P2PKH, false, endo_beta[base_idx], endo_beta[base_idx+1], endo_beta[base_idx+2], endo_beta[base_idx+3], h160_endo[3][0], h160_endo[3][1], h160_endo[3][2], h160_endo[3][3]);
 
-                g_secp->GetHash160_fromX(P2PKH, 0x02, &endo_beta2[base_idx].x, &endo_beta2[base_idx+1].x, &endo_beta2[base_idx+2].x, &endo_beta2[base_idx+3].x, h160_endo[4][0], h160_endo[4][1], h160_endo[4][2], h160_endo[4][3]);
-                g_secp->GetHash160_fromX(P2PKH, 0x03, &endo_beta2[base_idx].x, &endo_beta2[base_idx+1].x, &endo_beta2[base_idx+2].x, &endo_beta2[base_idx+3].x, h160_endo[5][0], h160_endo[5][1], h160_endo[5][2], h160_endo[5][3]);
+                g_secp->GetHash160(P2PKH, true, endo_beta2[base_idx], endo_beta2[base_idx+1], endo_beta2[base_idx+2], endo_beta2[base_idx+3], h160_endo[4][0], h160_endo[4][1], h160_endo[4][2], h160_endo[4][3]);
+                g_secp->GetHash160(P2PKH, false, endo_beta2[base_idx], endo_beta2[base_idx+1], endo_beta2[base_idx+2], endo_beta2[base_idx+3], h160_endo[5][0], h160_endo[5][1], h160_endo[5][2], h160_endo[5][3]);
 
                 for (int l = 0; l < 4; l++) {
                     endo_neg_pts[l] = g_secp->Negation(pts[base_idx + l]);

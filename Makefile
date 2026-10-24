@@ -1,5 +1,11 @@
 CXX := g++
-CXXFLAGS := -std=c++17 -Ofast -march=armv8-a+crypto -pthread -D_GNU_SOURCE -w -I.
+UNAME_M := $(shell uname -m)
+ARCH_FLAG := -march=native
+ifneq ($(filter aarch64 arm%,$(UNAME_M)),)
+    ARCH_FLAG := -march=armv8-a
+endif
+
+CXXFLAGS := -std=c++17 -Ofast $(ARCH_FLAG) -pthread -D_GNU_SOURCE -w -I.
 LDFLAGS := -pthread -lpthread
 
 OBJDIR := Secp256k1/.o

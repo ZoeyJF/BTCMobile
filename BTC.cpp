@@ -753,100 +753,174 @@ static bool check_and_verify(const uint8_t h160[20], uint64_t *rec_idx_out) {
     return false;
 }
 
-static void handle_found_candidate(int type_idx, int offset, Int &group_base_key, const uint8_t cand_h160[20], int thread_id) {
-    Int keyfound;
-    keyfound.SetInt32(offset);
-    keyfound.Mult(&g_stride);
-    keyfound.Add(&group_base_key);
+static void handle_found_candidate(int type_idx, int offset, Int &key_mpz, const uint8_t cand_h160[20], int thread_id) {
+    Int offset_int;
+    offset_int.SetInt32(offset);
+    offset_int.Mult(&g_stride);
 
-    Point pub_eval = g_secp->ComputePublicKey(&keyfound);
+    Int key_at_offset;
+    key_at_offset.Set(&key_mpz);
+    key_at_offset.Add(&offset_int);
+
+    Int priv;
 
     switch (type_idx) {
-        case 0:
-            if (pub_eval.y.IsOdd()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        case 0: {
+            priv.Set(&key_at_offset);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsOdd()) {
+                priv.Set(&g_secp->order);
+                priv.Sub(&key_at_offset);
             }
             break;
-        case 1:
-            if (pub_eval.y.IsEven()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        }
+        case 1: {
+            priv.Set(&key_at_offset);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsEven()) {
+                priv.Set(&g_secp->order);
+                priv.Sub(&key_at_offset);
             }
             break;
-        case 2:
-            keyfound.ModMulK1order(&g_lambda);
-            if (pub_eval.y.IsOdd()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        }
+        case 2: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsOdd()) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
             }
             break;
-        case 3:
-            keyfound.ModMulK1order(&g_lambda);
-            if (pub_eval.y.IsEven()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        }
+        case 3: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsEven()) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
             }
             break;
-        case 4:
-            keyfound.ModMulK1order(&g_lambda2);
-            if (pub_eval.y.IsOdd()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        }
+        case 4: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda2);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsOdd()) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
             }
             break;
-        case 5:
-            keyfound.ModMulK1order(&g_lambda2);
-            if (pub_eval.y.IsEven()) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+        }
+        case 5: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda2);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            if (pub.y.IsEven()) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
             }
             break;
-        case 6:
+        }
+        case 6: {
+            priv.Set(&key_at_offset);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                priv.Set(&g_secp->order);
+                priv.Sub(&key_at_offset);
+            }
+            break;
+        }
         case 7: {
-            uint8_t check_h[20];
-            g_secp->GetHash160(P2PKH, false, pub_eval, check_h);
-            if (memcmp(cand_h160, check_h, 20) != 0) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+            priv.Set(&g_secp->order);
+            priv.Sub(&key_at_offset);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                priv.Set(&key_at_offset);
             }
             break;
         }
-        case 8:
+        case 8: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
+            }
+            break;
+        }
         case 9: {
-            keyfound.ModMulK1order(&g_lambda);
-            Point p_check = g_secp->ComputePublicKey(&keyfound);
-            uint8_t check_h[20];
-            g_secp->GetHash160(P2PKH, false, p_check, check_h);
-            if (memcmp(cand_h160, check_h, 20) != 0) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+            Int temp;
+            temp.Set(&key_at_offset);
+            temp.ModMulK1order(&g_lambda);
+            priv.Set(&g_secp->order);
+            priv.Sub(&temp);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                priv.Set(&temp);
             }
             break;
         }
-        case 10:
+        case 10: {
+            priv.Set(&key_at_offset);
+            priv.ModMulK1order(&g_lambda2);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                Int temp;
+                temp.Set(&priv);
+                priv.Set(&g_secp->order);
+                priv.Sub(&temp);
+            }
+            break;
+        }
         case 11: {
-            keyfound.ModMulK1order(&g_lambda2);
-            Point p_check = g_secp->ComputePublicKey(&keyfound);
-            uint8_t check_h[20];
-            g_secp->GetHash160(P2PKH, false, p_check, check_h);
-            if (memcmp(cand_h160, check_h, 20) != 0) {
-                keyfound.Neg();
-                keyfound.Add(&g_secp->order);
+            Int temp;
+            temp.Set(&key_at_offset);
+            temp.ModMulK1order(&g_lambda2);
+            priv.Set(&g_secp->order);
+            priv.Sub(&temp);
+            Point pub = g_secp->ComputePublicKey(&priv);
+            uint8_t h_test[20];
+            g_secp->GetHash160(P2PKH, false, pub, h_test);
+            if (memcmp(h_test, cand_h160, 20) != 0) {
+                priv.Set(&temp);
             }
             break;
         }
     }
 
-    uint8_t hit_priv_bytes[32];
-    int_obj_to_bytes(keyfound, hit_priv_bytes);
-    Point final_pub = g_secp->ComputePublicKey(&keyfound);
-
+    Point final_pub = g_secp->ComputePublicKey(&priv);
     uint8_t h160_c[20], h160_u[20];
     g_secp->GetHash160(P2PKH, true, final_pub, h160_c);
     g_secp->GetHash160(P2PKH, false, final_pub, h160_u);
 
-    process_hit(hit_priv_bytes, final_pub, h160_c, h160_u, thread_id);
+    if (memcmp(cand_h160, h160_c, 20) == 0 || memcmp(cand_h160, h160_u, 20) == 0) {
+        uint8_t hit_priv_bytes[32];
+        int_obj_to_bytes(priv, hit_priv_bytes);
+        process_hit(hit_priv_bytes, final_pub, h160_c, h160_u, thread_id);
+    }
 }
 
 static void worker_function(int thread_id) {

@@ -400,6 +400,7 @@ To clean and compile all targets (`BTC`, `CREATE-BIX`, `Address-Hash160`):
 make clean && make
 ```
 Donations ☕
+
 SEGWIT-BTC: bc1q4aqcpzlde5emla6c504pj9fn3jazsfetk8fgvp
 ETH: 0x755d370be94a8b904d66539886f8a933067adf22
 BNB-BSC:0x755d370be94a8b904d66539886f8a933067adf22

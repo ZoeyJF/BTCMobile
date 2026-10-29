@@ -399,3 +399,7 @@ To clean and compile all targets (`BTC`, `CREATE-BIX`, `Address-Hash160`):
 ```bash
 make clean && make
 ```
+Donations ☕
+BTC: 1Coffee1jV4gB5gaXfHgSHDz9xx9QSECVW
+ETH: 0x6222978c984C22d21b11b5b6b0Dd839C75821069
+DOGE: DKAG4g2HwVFCLzs7YWdgtcsK6v5jym1ErV

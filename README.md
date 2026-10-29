@@ -1,6 +1,6 @@
 # BTCMobile - High-Performance Mobile Bitcoin Engine
 
-**Author & Developer:** Zoey Alejandroo JF
+**Author & Developer:** ZoeyJF
 **Target Architectures:** ARM Mobile (Qualcomm Snapdragon Big Cores) / x86_64 / i686
 
 ---

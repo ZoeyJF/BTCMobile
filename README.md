@@ -406,6 +406,33 @@ Web: https://privatekeyfinder.io/downloads
 
 Web: http://addresses.loyce.club/
 
+Credits and Acknowledgments
+
+This project (BTCMobile) was developed and written completely from scratch, with an exclusive focus on ARM architecture and performance on mobile devices (Termux/Android). No code has been copied from other projects.
+
+However, the logical architecture and algorithmic design decisions of this tool were inspired after studying and analyzing the following excellent open-source projects:
+
+Keyhunt: https://github.com/albertobsd/keyhunt
+Inspired the approach and logic for extreme speed optimization in range scanning. 
+
+BitCrack: https://github.com/brichard19/BitCrack
+Inspired the strict validation methodology and brute-force structure to ensure no key is missed. 
+
+Brainflayer: https://github.com/ryancdotorg/brainflayer/tree/master
+Inspired the fast filtering concepts (adapted here into a custom XOR + IDX filter format instead of Bloom). 
+
+I thank their authors and the open-source community for sharing their knowledge.
+
+Third-Party Libraries
+
+This project uses the following open source header files, which maintain their own original copyrights and licenses:
+
+sse2neon.h: Used for the translation of SSE SIMD instructions to NEON on ARM. (See the Copyright and license notice within the file itself). 
+
+xxhash.h: Used for fast data hashing. (See the Copyright and license notice within the file itself). 
+
+
+
 Donations ☕
 
 SEGWIT-BTC: bc1q4aqcpzlde5emla6c504pj9fn3jazsfetk8fgvp

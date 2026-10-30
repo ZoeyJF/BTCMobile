@@ -1,12 +1,17 @@
 /*
- * BTCMobile - CREATE-BIX Database Generation Utility
- * Copyright (c) 2026 Zoey Alejandroo JF
+ * Copyright 2026 ZoeyJF
  *
- * Description: Builds high-speed search index database structures (BTC.bin, BTC.idx, BTC.xor) from raw Hash160 hex lists.
- * Mathematics / Algorithms:
- * - External Merge Sort: Chunked sorting and deduplication for multi-gigabyte address sets.
- * - Sparse & Full Indexing: Options for 28-byte Full Indexing (exact lookup) or 24-byte Sparse Indexing (stride-based lookup).
- * - Xor Filter: Constructive XOR filter (3-hash non-block xorfilter) achieving ultra-fast ~0.15% false-positive rejection.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <iostream>

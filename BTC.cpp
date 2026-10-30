@@ -1,13 +1,17 @@
 /*
- * BTCMobile - High-Performance Bitcoin Key Search Engine (ARM / Snapdragon Mobile Optimized)
- * Copyright (c) 2026 Zoey Alejandroo JF
+ * Copyright 2026 ZoeyJF
  *
- * Description: High-speed multithreaded Secp256k1 private key scanner supporting Sequential (-S) and Bidirectional Random (-Random) modes.
- * Mathematics / Algorithms:
- * - Montgomery Batch Inversion (IntGroup::ModInv): Batch inversion reducing N individual 256-bit mod inversions to 1 single inversion.
- * - Solinas / Pseudo-Mersenne Reduction (ModMulK1, ModSquareK1): Fast Secp256k1 field arithmetic exploiting prime P = 2^256 - 2^32 - 977.
- * - Multi-Address Format Derivation: Supports P2PKH (Comp/Uncomp), P2SH-P2WPKH, Bech32 (P2WPKH), and ETH raw Keccak-256 addresses.
- * - Continuous Thread Search & Core Pinning: Non-stop key searching upon hit, logging to FOUND.txt with Snapdragon Big-core affinity.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #define _POSIX_C_SOURCE 200809L

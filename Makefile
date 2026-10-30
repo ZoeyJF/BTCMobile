@@ -13,11 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#
-# Description: Automated build targets for BTC key engine, CREATE-BIX database generator, and Address-Hash160 utility.
-# Flags & Optimizations:
-# - x86_64 / i686: -Ofast -mssse3 -DSSE2NEON_H for SSSE3 accelerated SHA256 / RIPEMD160.
-# - ARMv8-A: -Ofast -march=armv8-a+crypto for mobile Snapdragon hardware vectorization.
 
 CXX := g++
 LDFLAGS := -pthread -lpthread

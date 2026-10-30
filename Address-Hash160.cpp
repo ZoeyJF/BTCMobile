@@ -1,19 +1,17 @@
 /*
- * Convert/Hash160.cpp
- * Copyright (c) zoey Alejandroo JF
+ * Copyright 2026 ZoeyJF
  *
- * Fast and memory-efficient Bitcoin and Ethereum address to Hash160 converter.
- */
-
-/*
- * BTCMobile - Address-Hash160 Converter Utility
- * Copyright (c) 2026 Zoey Alejandroo JF
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Description: Converts Bitcoin addresses (P2PKH, P2SH, Bech32) into 20-byte Hash160 hex digests.
- * Mathematics / Algorithms:
- * - Base58Check Decoding: Converts Base58 human-readable addresses to payload bytes, verifying double SHA256 checksums.
- * - Bech32 / Bech32m Polymod: Decodes SegWit native addresses using 5-bit grouping and GF(32) polynomial checksum.
- * - Output Generation: Outputs 40-character hex Hash160 strings to BTC.hex for indexed database creation.
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <iostream>

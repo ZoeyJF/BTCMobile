@@ -1,18 +1,10 @@
-/*
- * Copyright 2026 ZoeyJF
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+# BTCMobile - Build System Configuration
+# Copyright (c) 2026 Zoey Alejandroo JF
+#
+# Description: Automated build targets for BTC key engine, CREATE-BIX database generator, and Address-Hash160 utility.
+# Flags & Optimizations:
+# - x86_64 / i686: -Ofast -mssse3 -DSSE2NEON_H for SSSE3 accelerated SHA256 / RIPEMD160.
+# - ARMv8-A: -Ofast -march=armv8-a+crypto for mobile Snapdragon hardware vectorization.
 
 CXX := g++
 LDFLAGS := -pthread -lpthread
@@ -37,6 +29,7 @@ endif
 CLANGXX     := g++
 ADDR_SRCS   := Address-Hash160.cpp Secp256k1/sha256.cpp Secp256k1/ripemd160.cpp
 ADDR_BIN    := Address-Hash160
+ADDR_LIBS   := -lz
 
 OBJDIR := Secp256k1/.o
 
@@ -73,7 +66,7 @@ CREATE-BIX: $(OBJS_LIB) $(OBJDIR)/CREATE-BIX.o
 
 # ---- Target independiente compilado con clang++ ----
 $(ADDR_BIN): $(ADDR_SRCS)
-	$(CLANGXX) $(CLANGFLAGS) $^ -o $@
+	$(CLANGXX) $(CLANGFLAGS) $^ -o $@ $(ADDR_LIBS)
 
 clean:
 	rm -rf $(OBJDIR) BTC CREATE-BIX $(ADDR_BIN)

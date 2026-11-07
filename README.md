@@ -278,6 +278,7 @@ total 837
   4 -rw-r--r--+                1 root root   1948 Oct 29 01:15 Makefile
   4 -rw-r--r--+                1 root root     11 Oct 29 01:15 README.md
   3 drwxr-xr-x+                3 root root   3488 Oct 29 01:15 Secp256k1
+  3 drwxr-xr-x+                3 root root   3488 Oct 29 01:15 Test.txt
   4 -rw-r--r--+                1 root root   2684 Oct 29 01:15 VERIFICATION.txt
 root@localhost:~/BTCMobile#
 ```
